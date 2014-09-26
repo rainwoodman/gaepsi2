@@ -17,6 +17,7 @@ M = [
 FULL_SIZE = svr.remap_query_size(M)
 print FULL_SIZE
 from mpi4py import MPI
+import domain
 bigfile = BigFile(argv[1])
 #bigfile = BigFile('/physics2/yfeng1/BWSim/TEST/TEST-fof4/PART_027')
 b = bigfile.open("0/Position")
@@ -125,8 +126,8 @@ def makefig():
     gimage = numpy.load('test.npy')
     meanT = gimage[:, :, 1] / gimage[:, : , 0]
     density = gimage[:, :, 0]
-    print numpy.histogram(NL(density, range=-3), range=(-0.1, 1.2))
-    rgb = CoolWarm(NL(meanT), NL(density, range=-3))
+#    print numpy.histogram(NL(density, range=-3), range=(-0.1, 1.2))
+    rgb = CoolWarm(NL(meanT), NL(density))
     print rgb.shape, rgb.dtype
     from matplotlib.figure import Figure
     from matplotlib.backends.backend_agg import FigureCanvasAgg
