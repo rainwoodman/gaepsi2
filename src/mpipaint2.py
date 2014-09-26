@@ -1,27 +1,26 @@
 
 from bigfilepy import BigFile
 import svr
-import domain
 import painter
 import numpy
 from color import CoolWarm, N, NL
 
 from sys import argv
-from mpi4py import MPI
 
 # This version assumes a small image
 
-#bigfile = BigFile(argv[1])
-bigfile = BigFile('/physics2/yfeng1/BWSim/TEST/TEST-fof4/PART_027')
-b = bigfile.open("0/Position")
-world = MPI.COMM_WORLD
-
 M = [
-    [1, 1, 0],
-    [0, 1, 0],
-    [0, 0, 1]]
+    [2, 2, -3],
+    [7, 3, 6],
+    [2, 1, 1]]
 
 FULL_SIZE = svr.remap_query_size(M)
+print FULL_SIZE
+from mpi4py import MPI
+bigfile = BigFile(argv[1])
+#bigfile = BigFile('/physics2/yfeng1/BWSim/TEST/TEST-fof4/PART_027')
+b = bigfile.open("0/Position")
+world = MPI.COMM_WORLD
 
 PIXEL_WIDTH = 2200
 PIXEL_HEIGHT = int(FULL_SIZE[0] / FULL_SIZE[1] * PIXEL_WIDTH)
