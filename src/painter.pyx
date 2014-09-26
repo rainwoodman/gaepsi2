@@ -62,8 +62,11 @@ cdef void _write(floatingimage * image, int x, int y, double * values):
         image[0][y, x, i] += values[i]
 
 def paint(pos, sml, data, image):
-    """ paint on image of shape(height, width, nvalue)
-                                 y    ,   x,   
+    """ paint on 
+          image shape(height, width, nvalue)
+          data shape(:, nvalue)
+          pos[0] : 0 .. height
+          pos[1] : 0 .. width
     """
     return _paint(A(pos), A(sml), A(data), A(image))
 def _paint(floatingpos pos, 
