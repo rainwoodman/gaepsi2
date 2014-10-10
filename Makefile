@@ -1,2 +1,4 @@
+MPICC=cc
+LDSHARED="$(MPICC) -shared"
 all:
-	python setup.py build_ext --inplace
+	LDSHARED=$(LDSHARED) CC=$(MPICC) python setup.py build_ext --inplace
