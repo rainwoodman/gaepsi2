@@ -3,11 +3,12 @@ import os.path
 
 d = os.path.join(os.path.dirname(__file__), '..', 'src')
 sys.path.append(d)
-try:
-    import mpiimport; mpiimport.install(tmpdir='/tmp', verbose=False,
-        disable=False)
-except ImportError:
-    pass
+#try:
+import mpiimport; mpiimport.install(tmpdir='/tmp', verbose=False,
+    disable=False)
+#except ImportError:
+#    print 'not using mpiimport'
+#    pass
 from bigfilepy import BigFile
 
 import svr

@@ -242,7 +242,8 @@ def install(comm=COMM_WORLD, tmpdir='/tmp', verbose=False, disable=False):
     sys.meta_path.append(Finder(comm))
 
     if sys.flags.no_site:
-        import site
+        import mpisite as site
+        sys.modules['site'] = site
         site.main0()
 
         import sysconfig

@@ -7,8 +7,8 @@ from mpi4py import MPI
 import numpy
 
 d2d = domain.Grid2D(
-        gridx=numpy.linspace(0, 10., 2, endpoint=True),
-        gridy=numpy.linspace(0, 10., 2, endpoint=True),
+        gridx=numpy.linspace(0, 100., 3, endpoint=True),
+        gridy=numpy.linspace(0, 100., 3, endpoint=True),
         periodic=True,
         bleeding=1)
 

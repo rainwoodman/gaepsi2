@@ -63,6 +63,8 @@ import os
 import __builtin__
 import traceback
 
+__mpisite__ = "this is the special version of site.py for mpiimport"
+
 # Prefixes for site-packages; add additional prefixes like /usr/local here
 PREFIXES = [sys.prefix, sys.exec_prefix]
 # Enable per user site-packages directory
