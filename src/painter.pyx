@@ -49,10 +49,10 @@ ctypedef fused floatingimage:
 cdef numpy.ndarray A(obj):
     return numpy.asarray(obj)
 
-#@cython.boundscheck(False)
-#@cython.wraparound(False)
-#@cython.overflowcheck(False)
-#@cython.nonecheck(False)
+@cython.boundscheck(False)
+@cython.wraparound(False)
+@cython.overflowcheck(False)
+@cython.nonecheck(False)
 cdef void _write(floatingimage * image, int x, int y, double * values):
     cdef int i
     # this is not thread safe
@@ -70,10 +70,10 @@ def paint(pos, sml, data, image):
     """
     return _paint(A(pos), A(sml), A(data), A(image))
 
-#@cython.boundscheck(False)
-#@cython.wraparound(False)
-#@cython.overflowcheck(False)
-#@cython.nonecheck(False)
+@cython.boundscheck(False)
+@cython.wraparound(False)
+@cython.overflowcheck(False)
+@cython.nonecheck(False)
 def _paint(floatingpos pos, 
         floatingsml sml,
         floatingdata data,
