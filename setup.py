@@ -1,12 +1,14 @@
 from distutils.core import setup
 from Cython.Build import cythonize
 from distutils.extension import Extension
+import numpy
 def myext(*args):
-    return Extension(*args, include_dirs=["./"])
+    return Extension(*args, include_dirs=["./", numpy.get_include()])
 extensions = [
         myext("gaepsi.svr", ["src/svr.pyx"]),
         myext("gaepsi.domain", ["src/domain.pyx"]),
-        myext("gaepsi.painter", ["src/painter.pyx"])
+        myext("gaepsi.painter", ["src/painter.pyx"]),
+        myext("gaepsi.mpiimport", ["src/mpiimport.pyx"]),
         ]
 
 setup(
