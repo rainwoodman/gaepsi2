@@ -8,7 +8,7 @@ extensions = [
         myext("gaepsi.svr", ["src/svr.pyx"]),
         myext("gaepsi.domain", ["src/domain.pyx"]),
         myext("gaepsi.painter", ["src/painter.pyx"]),
-        myext("gaepsi.mpiimport", ["src/mpiimport.pyx"]),
+        myext("mpiimport.mpiimport", ["mpiimport/mpiimport.pyx"]),
         ]
 
 setup(

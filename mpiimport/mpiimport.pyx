@@ -117,33 +117,37 @@ def loadcextensionfromstring(fullname, string, pathname, description):
         mod = imp.load_module(fullname, f2, pathname, description)
         tload.end()
         if description[-1] == imp.C_EXTENSION:
+            # important to hold a handle
+            # to avoid the system unlinking the file
+            # while the module is in use
             mod.filehandle = f2
         else:
             f2.close()
         #print mod
         tio.start()
+        # unlink when the module is unloaded
         posix.unlink(name)
         tio.end()
         return mod 
 #    except Exception as e:
 #        print 'exception', e
 
+def abort():
+    """ abort """
+    MPI_Abort(MPI_COMM_WORLD, -1)
+
+
 if hasattr(sys, 'exitfunc'):
     oldexitfunc = sys.exitfunc
 else:
     oldexitfunc = lambda : None
 
-def cleanup():
+def _cleanup():
     MPI_Finalize()
-    return
-    global _tmpfiles
-    for f in _tmpfiles:
-    #    print 'removing', f
-        posix.unlink(f)
-    _tmpfiles = []
     oldexitfunc()
+    return
 
-sys.exitfunc = cleanup
+sys.exitfunc = _cleanup
 
 class Loader(object):
     def __init__(self, file, pathname, description):
