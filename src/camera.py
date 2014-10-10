@@ -1,3 +1,21 @@
+"""
+   Camera support in Gaepsi
+
+   a camera is represented by a 4x4 transformation matrix like OpenGL.
+
+   If it is done correctly, we use
+   
+   pos[:, :4] dot  matrix for the transformation.
+
+   lookat: build the model/view matrix
+   ortho:  the orthogonal perspective matrix
+
+   the full transformation is perspective dot lookat
+
+   apply: apply the transformation to a 3 d position vector,
+
+   the devide coordinate is [-1, 1]. 
+"""
 import numpy
 
 def ortho(near, far, extent):
@@ -15,7 +33,7 @@ def ortho(near, far, extent):
 
 def lookat(pos, target, up):
     """ the full transformation matrix is 
-        projection * lookat
+        perspective dot lookat
     """
     pos = numpy.asarray(pos)
     target = numpy.asarray(target)
@@ -44,6 +62,7 @@ def apply(matrix, pos, out=None):
         apply the transform matrix to pos
         matrix = projection dot view 
         returns new pos in device coordinate
+
         (-1, 1) x (-1, 1) x (-1, 1)
     """
     if out is None:

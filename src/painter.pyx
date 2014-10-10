@@ -69,12 +69,18 @@ def paint(pos, sml, data, image):
           pos[1] : 0 .. width
     """
     return _paint(A(pos), A(sml), A(data), A(image))
+
+#@cython.boundscheck(False)
+#@cython.wraparound(False)
+#@cython.overflowcheck(False)
+#@cython.nonecheck(False)
 def _paint(floatingpos pos, 
         floatingsml sml,
         floatingdata data,
         floatingimage image):
     cdef GSPHPainter painter
     cdef numpy.intp_t i
+    cdef int j
     cdef int size[2]
     size[0] = image.shape[0]
     size[1] = image.shape[1]

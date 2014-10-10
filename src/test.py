@@ -1,4 +1,3 @@
-
 import svr
 M=[[1, 1, 0], [0, 1, 0], [0, 0, 1]]; print svr.remap([[0, 0, 1.]], M)
 

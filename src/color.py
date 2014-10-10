@@ -1,6 +1,29 @@
+"""
+Color map in Gaepsi
+
+We do not deligate to matplotlib's color map in this module
+
+N and NL can produce some large arrays (2x original)
+
+the only colormap is CoolWarm
+
+CoolWarm(color, brightness) returns rgb in u1.
+color and brightness shall be normalized to 0, 1; 
+out of bound numbers are satuated (numpy.interp)
+
+"""
 import numpy
 
 def N(a, range=None):
+    """ normalize array, so that max -> 1, min-> 0
+        max, min given by range
+
+        range can be a scalar (min = max - scalar) 
+        range can be a tuple (the min and the max)
+        range can be None (min max from data)
+
+        nan is skipped.
+    """
     if range is not None:
         if numpy.isscalar(range):
             amax = numpy.nanmax(a)
@@ -11,14 +34,20 @@ def N(a, range=None):
     else:
         amin = numpy.nanmin(a)
         amax = numpy.nanmax(a)
-    print 'max', amax, numpy.nanmax(a)
-    print 'min', amin, numpy.nanmin(a)
     a = a - amin
     a /= (amax - amin)
     return a
-    return a.clip(0., 1.)
 
 def NL(a, range=None):
+    """ normalize array in logscale, so that max -> 1, min-> 0
+        max, min given by range
+
+        range can be a scalar (min = max - scalar) 
+        range can be a tuple (the min and the max)
+        range can be None (min max from data)
+
+        nan is skipped.
+    """
     a = numpy.log10(a)
     a[numpy.isneginf(a)] = numpy.nan
     return N(a, range)

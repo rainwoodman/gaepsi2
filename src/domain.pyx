@@ -1,3 +1,9 @@
+"""
+   Domain Decomposition in Gaepsi
+
+    currently we have a Grid2D decomposition algorithm.
+
+"""
 from mpi4py import MPI
 cimport numpy
 import numpy
@@ -18,6 +24,7 @@ cdef numpy.ndarray _digitize(data, bins, period):
         return numpy.digitize(data, bins)
 
 cdef numpy.ndarray A(b):
+    """ we use A to convert a memoryslice /view to array"""
     return numpy.asarray(b)
 
 class Rotator(object):
@@ -31,7 +38,15 @@ class Rotator(object):
             self.comm.barrier()
 
 class Layout(object):
+    """ A global all to all communication layout 
+        
+    """
     def __init__(self, comm, sendcounts, indices):
+        """
+        sendcounts is the number of items to send
+        indices is the indices of the items in the data array.
+        """
+
         self.comm = comm
         assert self.comm.size == sendcounts.shape[0]
 
@@ -41,6 +56,8 @@ class Layout(object):
         self.sendoffsets = numpy.zeros_like(self.sendcounts)
         self.recvoffsets = numpy.zeros_like(self.recvcounts)
 
+        # calculate the recv counts array
+        # ! Alltoall
         self.comm.Alltoall(self.sendcounts, self.recvcounts)
 
         self.sendoffsets[1:] = self.sendcounts.cumsum()[:-1]
@@ -50,24 +67,36 @@ class Layout(object):
         self.newlength = self.recvcounts.sum()
 
         self.indices = indices
+
     def exchange(self, data):
+        """ exchange the data globally according to the layout
+            data shall be of the same length of the input position
+            that builds the layout
+        """
         #build buffer
+        # Watch out: 
+        # take produces C-contiguous array, 
+        # friendly to alltoallv.
+        # fancy indexing does not always return C_contiguous
+        # array (2 days to realize this!)
+        
         buffer = data.take(self.indices, axis=0)
         sendbuffers = numpy.split(buffer, self.sendoffsets[1:])
 
         newshape = list(data.shape)
         newshape[0] = self.newlength
 
+        # build a dtype for communication
+        # this is to avoid 2GB limit from bytes.
         duplicity = numpy.product(data.shape[1:]) 
-
         itemsize = duplicity * data.dtype.itemsize
-
         dt = MPI.BYTE.Create_contiguous(itemsize)
-
         dt.Commit()
+
         recvbuffer = numpy.empty(newshape, dtype=buffer.dtype)
         recvbuffers = numpy.split(recvbuffer, self.recvcounts)
         
+        # now fire
         self.comm.Alltoallv((buffer, (self.sendcounts, self.sendoffsets), dt), 
                             (recvbuffer, (self.recvcounts, self.recvoffsets), dt))
         dt.Free()
@@ -85,8 +114,11 @@ class Grid2D(object):
             periodic=True):
         """ gridy is the fast changing dimension (aka this is not the image
             coordinate system
+
+            gridx[-1] gridy[-1] are the boxsizes
         """
         self.dims = (len(gridx) - 1, len(gridy) - 1)
+        # gridx[-1] gridy[-1] are the boxsizes
         self.gridx = gridx
         self.gridy = gridy
         self.periodic = periodic
@@ -130,6 +162,10 @@ class Grid2D(object):
 
         xl, xr, yl, yr = target.T
 
+        # FIXME: this is a bit buggy when there is bleeding
+        # and self.periodic is true
+        # if bleeding is bigger than the boxsize.
+
         A(xl)[...] = _digitize(x - bleeding, self.gridx, self.periodic) - 1
         A(xr)[...] = _digitize(x + bleeding, self.gridx, self.periodic)
         A(yl)[...] = _digitize(y - bleeding, self.gridy, self.periodic) - 1
@@ -151,6 +187,7 @@ class Grid2D(object):
             A(xr).clip(0, nx, out=A(xr))
             A(yr).clip(0, ny, out=A(yr))
 
+        # first count the sizes
         for i in range(xl.shape[0]):
             for u in range(xl[i], xr[i]):
                 for v in range(yl[i], yr[i]):
@@ -167,6 +204,8 @@ class Grid2D(object):
         offsets2d = offsetsobj.reshape(self.dims)
         ptrs = offsets2d.copy()
 
+        # now lets build the indices array.
+
         indices = numpy.empty(total, dtype='intp')
         for i in range(xl.shape[0]):
             for u in range(xl[i], xr[i]):
@@ -175,6 +214,8 @@ class Grid2D(object):
                     v = v % ny
                     indices[ptrs[u, v]] = i
                     ptrs[u, v] = ptrs[u, v] + 1
+
+        # create the layout object
         layout = Layout(
                 comm=self.comm,
                 sendcounts=A(counts2d).reshape(-1),

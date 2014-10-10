@@ -1,3 +1,18 @@
+"""
+Survey Volume Remapping in Gaepsi
+
+    3D transformation that remaps a cube to a sheet.
+
+    need matrix M (hard to find, get the numbers from Carlson and White 2010
+
+    remap expects input in [0, 1]
+
+    wrap will convert BoxSize to [0, 1]
+    remap_query_size returns the boxsize of the remapped volume 
+            [1, 1, 1] -> size
+
+"""
+
 import numpy
 cimport numpy
 
