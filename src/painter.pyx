@@ -79,7 +79,7 @@ def _paint(floatingpos pos,
     size[0] = image.shape[0]
     size[1] = image.shape[1]
     cdef int nvalue = image.shape[2]
-
+    assert data.shape[1] == image.shape[2]
     cdef gsph_spline_kernel sphkernel
     sphkernel = gsph_spline_query(SPLINE_2D_PROJ_CUBIC)
 

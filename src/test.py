@@ -26,11 +26,10 @@ with domain.Rotator(MPI.COMM_WORLD):
 
 
 import painter
-p = painter.Painter()
 values = numpy.ones((len(pos), 1))
 sml = numpy.ones(len(pos)) * 10
 image = numpy.zeros((100, 100, 1))
-p.paint(pos, sml, values, image)
+painter.paint(pos, sml, values, image)
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 fig = Figure()

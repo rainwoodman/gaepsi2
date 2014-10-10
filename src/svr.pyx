@@ -23,7 +23,8 @@ def wrap(pos, BoxSize, offset=None, output=None):
         output = numpy.empty_like(pos)
     if offset and offset != 0.0 :
         output = numpy.substract(pos, offset, output=output)
-    return numpy.multiply(pos, norm, output=output)
+    numpy.multiply(pos, norm, output=output)
+    return numpy.remainder(output, 1.0, output=output)
 
 def remap_query_size(M):
     cdef SVRemap r 
@@ -35,7 +36,7 @@ def remap_query_size(M):
 
 def remap(pos, M, output=None):
     """ the output if provided shall be of shape [, 3]
-        pos shall be of shape [, 3]
+        pos shall be of shape [, 3], and between [0, 1] in all dimensions.
         M is a 3x3 integer matrix
         currently no sanity checks are performed.
     """
@@ -67,3 +68,4 @@ def remap(pos, M, output=None):
         y[i, 1] = tmp[1]
         y[i, 2] = tmp[2]
     return output
+

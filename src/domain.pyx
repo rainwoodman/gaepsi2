@@ -12,8 +12,10 @@ def sqrtint(x):
 cdef numpy.ndarray _digitize(data, bins, period):
     if period:
         data = numpy.remainder(data, bins[-1], output=data)
-    rt = numpy.digitize(data, bins)
-    return rt
+    if len(data) == 0:
+        return numpy.empty((0), dtype='intp')
+    else:
+        return numpy.digitize(data, bins)
 
 cdef numpy.ndarray A(b):
     return numpy.asarray(b)
@@ -50,9 +52,7 @@ class Layout(object):
         self.indices = indices
     def exchange(self, data):
         #build buffer
-        data = A(data)
-
-        buffer = data[self.indices]
+        buffer = data.take(self.indices, axis=0)
         sendbuffers = numpy.split(buffer, self.sendoffsets[1:])
 
         newshape = list(data.shape)
@@ -82,8 +82,7 @@ class Grid2D(object):
             gridx,
             gridy,
             comm=MPI.COMM_WORLD,
-            periodic=True,
-            bleeding=0):
+            periodic=True):
         """ gridy is the fast changing dimension (aka this is not the image
             coordinate system
         """
@@ -93,7 +92,6 @@ class Grid2D(object):
         self.periodic = periodic
         self.comm = comm
         #self.comm2D = comm.Create_cart(self.dims, periods=[periodic for i in self.dims])
-        self.bleeding = bleeding
 
         cdef int ny = self.dims[1]
         rank = [ self.comm.rank // ny, self.comm.rank % ny]
@@ -101,7 +99,7 @@ class Grid2D(object):
         self.end = numpy.array([self.gridx[rank[0] + 1], self.gridy[rank[1] + 1]])
 
 
-    def decompose(self, pos):
+    def decompose(self, pos, bleeding=0):
         """ decompose the domain according to pos,
 
             returns a Layout object that can be used
@@ -132,10 +130,10 @@ class Grid2D(object):
 
         xl, xr, yl, yr = target.T
 
-        A(xl)[:] = _digitize(x - self.bleeding, self.gridx, self.periodic) - 1
-        A(xr)[:] = _digitize(x + self.bleeding, self.gridx, self.periodic)
-        A(yl)[:] = _digitize(y - self.bleeding, self.gridy, self.periodic) - 1
-        A(yr)[:] = _digitize(y + self.bleeding, self.gridy, self.periodic)
+        A(xl)[...] = _digitize(x - bleeding, self.gridx, self.periodic) - 1
+        A(xr)[...] = _digitize(x + bleeding, self.gridx, self.periodic)
+        A(yl)[...] = _digitize(y - bleeding, self.gridy, self.periodic) - 1
+        A(yr)[...] = _digitize(y + bleeding, self.gridy, self.periodic)
 
         countsobj = numpy.zeros(self.dims, 'intp')
         counts2d = countsobj
