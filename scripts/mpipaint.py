@@ -144,8 +144,8 @@ def process_chunk(image,
         data = layout.exchange(data)
 
         # to rank device coordinate
-        pos[:, 0] -= d2d.start[0]
-        pos[:, 1] -= d2d.start[1]
+        pos[:, 0] -= d2d.mystart[0]
+        pos[:, 1] -= d2d.mystart[1]
 
     print 'before paint', len(pos)
     painter.paint(pos, sml, data, image)
@@ -153,7 +153,7 @@ def process_chunk(image,
     if d2d is not None:
         # get some stats
         try:
-            posstats = (pos.min(axis=0), pos.max(axis=0), d2d.start, d2d.end)
+            posstats = (pos.min(axis=0), pos.max(axis=0), d2d.mystart, d2d.myend)
         except:
             posstats = None
         try:
@@ -190,15 +190,15 @@ def main(comm):
     NY = comm.size // NX
      
     if not SMALL_IMAGE:
-        d2d = domain.Grid2D(
-                gridx=buildgrid(PIXEL_HEIGHT, NX),
-                gridy=buildgrid(PIXEL_WIDTH, NY),
+        d2d = domain.GridND(
+                grid=[buildgrid(PIXEL_HEIGHT, NX),
+                      buildgrid(PIXEL_WIDTH, NY)],
                 comm=comm,
-                periodic=False)
+                periodic=True)
 
-        myoffset = (d2d.start[0], d2d.start[1])
-        mysize = (d2d.end[0] - d2d.start[0], 
-                d2d.end[1] - d2d.start[1])
+        myoffset = (d2d.mystart[0], d2d.mystart[1])
+        mysize = (d2d.myend[0] - d2d.mystart[0], 
+                d2d.myend[1] - d2d.mystart[1])
     else:
         d2d = None
         mysize = (PIXEL_HEIGHT, PIXEL_WIDTH)

@@ -1,7 +1,7 @@
 """
    Domain Decomposition in Gaepsi
 
-    currently we have a Grid2D decomposition algorithm.
+    currently we have a GridND decomposition algorithm.
 
 """
 from mpi4py import MPI
@@ -15,9 +15,7 @@ def sqrtint(x):
         y = y - 1
     return y
 
-cdef numpy.ndarray _digitize(data, bins, period):
-    if period:
-        data = numpy.remainder(data, bins[-1], output=data)
+cdef numpy.ndarray _digitize(data, bins):
     if len(data) == 0:
         return numpy.empty((0), dtype='intp')
     else:
@@ -103,33 +101,99 @@ class Layout(object):
         return recvbuffer
 
 
-class Grid2D(object):
+class GridND(object):
     """
-        2D domain decomposition on a uniform grid
+        ND domain decomposition on a uniform grid
     """
     def __init__(self, 
-            gridx,
-            gridy,
+            grid,
             comm=MPI.COMM_WORLD,
             periodic=True):
-        """ gridy is the fast changing dimension (aka this is not the image
-            coordinate system
-
-            gridx[-1] gridy[-1] are the boxsizes
+        """ 
+            grid is a list of  grid edges. 
+            grid[0] or pos[:, 0], etc.
+        
+            grid[i][-1] are the boxsizes
+            the ranks are set up into a mesh of 
+                len(grid[0]) - 1, ...
         """
-        self.dims = (len(gridx) - 1, len(gridy) - 1)
-        # gridx[-1] gridy[-1] are the boxsizes
-        self.gridx = gridx
-        self.gridy = gridy
+        self.dims = [len(g) - 1 for g in grid]
+        self.grid = numpy.asarray(grid)
         self.periodic = periodic
         self.comm = comm
-        #self.comm2D = comm.Create_cart(self.dims, periods=[periodic for i in self.dims])
+        assert comm.size == numpy.product(self.dims)
+        rank = numpy.unravel_index(self.comm.rank, self.dims)
 
-        cdef int ny = self.dims[1]
-        rank = [ self.comm.rank // ny, self.comm.rank % ny]
-        self.start = numpy.array([self.gridx[rank[0]], self.gridy[rank[1]]])
-        self.end = numpy.array([self.gridx[rank[0] + 1], self.gridy[rank[1] + 1]])
+        self.myrank = numpy.array(rank)
+        self.mystart = numpy.array([g[r] for g, r in zip(grid, rank)])
+        self.myend = numpy.array([g[r + 1] for g, r in zip(grid, rank)])
 
+    def _fill(self, int mode,
+            int Ndim,
+            int Npoint,
+            short int [:, ::1] sil,
+            short int [:, ::1] sir,
+            int periodic,
+            int [::1] counts
+            ):
+        # first count the sizes
+        cdef int patchsize = 0
+        cdef int p[32]
+        cdef int strides[32]
+        cdef int dims[32]
+        cdef numpy.int32_t [::1] offset = None
+        cdef int i
+        cdef int j
+        cdef int jj
+        cdef int k
+        cdef int t
+        cdef int [::1] indices = None
+        cdef int Nrank
+        if mode == 1:
+            Nrank = self.comm.size
+            offset = numpy.empty(Nrank + 1, dtype='int32')
+            offset[0] = 0
+            for i in range(1, Nrank + 1):
+                offset[i] = offset[i - 1] + counts[i - 1]
+            totalsize = offset[Nrank]
+            indices = numpy.empty(totalsize, dtype='int32')
+
+        for j in range(Ndim):
+            dims[j] = self.dims[j]
+
+        strides[Ndim -1 ] = 1
+        for j in range(Ndim - 2, -1, -1):
+            strides[j] = strides[j + 1] * dims[j + 1]
+        cdef numpy.intp_t target
+        for i in range(Npoint):
+            patchsize = 1
+            for j in range(Ndim):
+                patchsize *= sir[j, i] - sil[j, i]
+                p[j] = sil[j, i]
+            for k in range(patchsize):
+                target = 0
+                for j in range(Ndim):
+                    t = p[j]
+                    if periodic:
+                        while t >= dims[j]:
+                            t -= dims[j]
+                        while t < 0:
+                            t += dims[j]
+                    target = target + t * strides[j]
+                if mode == 0:
+                    counts[target] += 1
+                else:
+                    indices[offset[target]] = i
+                    offset[target] += 1
+                p[Ndim - 1] += 1
+                # advance
+                for jj in range(Ndim-1, 0, -1):
+                    if p[jj] == sir[jj, i]:
+                        p[jj] = sil[jj, i]
+                        p[jj - 1] += 1
+                    else:
+                        break
+        return indices
 
     def decompose(self, pos, bleeding=0):
         """ decompose the domain according to pos,
@@ -138,87 +202,54 @@ class Grid2D(object):
             to exchange data
         """
 
-        x, y = numpy.asarray(pos).T
-
-        target = numpy.empty((len(x), 4), 'int16')
-        cdef short int [:] xl
-        cdef short int [:] yl
-        cdef short int [:] xr
-        cdef short int [:] yr
-
-        cdef numpy.intp_t i
-
-        cdef numpy.intp_t u, v
-        cdef int nx = self.dims[0]
-        cdef int ny = self.dims[1]
-
-        cdef numpy.intp_t [:, ::1] counts2d
-        cdef numpy.intp_t [:, ::1] offsets2d 
-        cdef numpy.intp_t [::1] counts
-
-        cdef numpy.intp_t [::1] indices
-        cdef numpy.intp_t [:, ::1] ptrs
+        # we can't deal with too many points per rank, by  MPI
+        assert len(pos) < 1024 * 1024 * 1024 * 2
+        posT = numpy.asarray(pos).T
+        cdef short int [:, ::1] sil
+        cdef short int [:, ::1] sir
         cdef int periodic = self.periodic
+        cdef int Npoint
+        cdef int Ndim
+        cdef short int [:, ::1] width
+        Npoint = len(pos)
+        Ndim = len(self.dims)
+        sil = numpy.empty((Ndim, Npoint), dtype='i2')
+        sir = numpy.empty((Ndim, Npoint), dtype='i2')
+        cdef numpy.intp_t i
+        cdef int j
+        for j in range(Ndim):
+            dim = self.dims[j]
+            if periodic:
+                tmp = numpy.remainder(posT[j], self.grid[j][-1])
+            else:
+                tmp = posT[j]
+            A(sil)[j, :] = _digitize(posT[j] - bleeding, self.grid[j]) - 1
+            A(sir)[j, :] = _digitize(posT[j] + bleeding, self.grid[j])
+            if periodic:
+                for i in range(Npoint):
+                    if sir[j, i] < sil[j, i]:
+                        sir[j, i] = sir[j, i] + dim
+            else:
+                numpy.clip(sil[j], 0, dim, out=A(sil[j]))
+                numpy.clip(sir[j], 0, dim, out=A(sir[j]))
 
-        xl, xr, yl, yr = target.T
 
-        # FIXME: this is a bit buggy when there is bleeding
-        # and self.periodic is true
-        # if bleeding is bigger than the boxsize.
 
-        A(xl)[...] = _digitize(x - bleeding, self.gridx, self.periodic) - 1
-        A(xr)[...] = _digitize(x + bleeding, self.gridx, self.periodic)
-        A(yl)[...] = _digitize(y - bleeding, self.gridy, self.periodic) - 1
-        A(yr)[...] = _digitize(y + bleeding, self.gridy, self.periodic)
+        cdef int [::1] counts
 
-        countsobj = numpy.zeros(self.dims, 'intp')
-        counts2d = countsobj
-        counts = countsobj.reshape(-1)
+        counts = numpy.zeros(self.comm.size, dtype='int32')
 
-        if periodic:
-            for i in range(xl.shape[0]):
-                if xr[i] < xl[i]:
-                    xr[i] += nx
-                if yr[i] < yl[i]:
-                    yr[i] += ny
-        else:
-            A(xl).clip(0, nx, out=A(xl))
-            A(yl).clip(0, ny, out=A(yl))
-            A(xr).clip(0, nx, out=A(xr))
-            A(yr).clip(0, ny, out=A(yr))
+        self._fill(0, Ndim, Npoint, sil, sir, periodic, counts)
 
-        # first count the sizes
-        for i in range(xl.shape[0]):
-            for u in range(xl[i], xr[i]):
-                for v in range(yl[i], yr[i]):
-                    u = u % nx
-                    v = v % ny
-                    counts2d[u, v] = counts2d[u, v] + 1
-
-        cumsum = countsobj.cumsum()
-
-        total = cumsum[-1]
-        offsetsobj = numpy.zeros_like(cumsum)
-        offsetsobj[1:] = cumsum[:-1]
-
-        offsets2d = offsetsobj.reshape(self.dims)
-        ptrs = offsets2d.copy()
-
+        cdef int [::1] indices
         # now lets build the indices array.
-
-        indices = numpy.empty(total, dtype='intp')
-        for i in range(xl.shape[0]):
-            for u in range(xl[i], xr[i]):
-                for v in range(yl[i], yr[i]):
-                    u = u % nx
-                    v = v % ny
-                    indices[ptrs[u, v]] = i
-                    ptrs[u, v] = ptrs[u, v] + 1
+        indices = self._fill(1, Ndim, Npoint, sil, sir, periodic, counts)
 
         # create the layout object
         layout = Layout(
                 comm=self.comm,
-                sendcounts=A(counts2d).reshape(-1),
+                sendcounts=A(counts),
                 indices=A(indices))
 
         return layout
+
