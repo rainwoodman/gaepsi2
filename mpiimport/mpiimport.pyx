@@ -161,16 +161,30 @@ class Loader(object):
                 mod.__file__ = "<%s>" % self.__class__.__name__
                 mod.__package__ = fullname.rpartition('.')[0]
                 if _verbose:
-                    print 'module', fullname, 'using string'
+                    print 'module', fullname, 'using ', len(self.file), 'bytes', 'PY_SOURCE'
                 code = compile(self.file, self.pathname, 'exec', 0, 1)
                 exec code in mod.__dict__
 #                mod = loadcextensionfromstring(fullname, self.file, self.pathname, self.description) 
             elif self.description[-1] == imp.C_EXTENSION:
+                if _verbose:
+                    print 'module', fullname, 'using ', len(self.file), 'bytes', 'C_EXTENSION'
                 #print "loading extension"
                 mod = loadcextensionfromstring(fullname, self.file, self.pathname, self.description) 
+            elif False: # This doesn't work yet! self.description[-1] == imp.PKG_DIRECTORY:
+                mod = sys.modules.setdefault(fullname, imp.new_module(fullname))
+                mod.__path__ = []
+                mod.__file__ = "<%s>" % self.__class__.__name__
+                mod.__package__ = fullname
+                # mod thought it is in-tree
+                if _verbose:
+                    print 'module', fullname, 'using ', len(self.file), 'bytes', 'PY_SOURCE'
+                code = compile(self.file, "", 'exec', 0, 1)
+                exec code in mod.__dict__
+#                mod = loadcextensionfromstring(fullname, self.file, self.pathname, self.description) 
+
             else:
                 if _verbose:
-                    print 'module', fullname, 'using', self.file
+                    print 'module', fullname, 'using', self.file, 'OTHER'
                 tio.start()
                 self.file = open(self.file, self.description[1])
                 tio.end()
@@ -178,6 +192,8 @@ class Loader(object):
                 mod = imp.load_module(fullname, self.file, self.pathname, self.description)
                 tloadfile.end()
         else:
+            if _verbose:
+                print 'module', fullname, 'using', self.file, 'LOCAL'
             tloadlocal.start()
             mod = imp.load_module(fullname, self.file, self.pathname, self.description)
             tloadlocal.end()
@@ -190,10 +206,11 @@ class Finder(object):
         self.rank = comm.rank
     def find_module(self, fullname, path=None):
         file, pathname, description = None, None, None
+        name = fullname.split('.')[-1]
         if _disable:
             tfind.start()
             try:
-                file, pathname, description = imp.find_module(fullname, path)
+                file, pathname, description = imp.find_module(name, path)
             except ImportError as e:
                 file = e
                 pass
@@ -205,28 +222,48 @@ class Finder(object):
             if self.rank == 0:
                 tfind.start()
                 try:
-                    file, pathname, description = imp.find_module(fullname, path)
+                    file, pathname, description = imp.find_module(name, path)
                 except ImportError as e:
                     file = e
+
                 tfind.end()
                 #print fullname, file, pathname
                 if not isinstance(file, Exception):
                     tio.start()
-                    if file:
-                        if description[-1] == imp.PY_SOURCE:
-                            #print 'finding python module', file.name
+                    if description[-1] == imp.PY_SOURCE:
+                        #print 'finding python module', file.name
+                        s = file.read()
+                        file.close()
+                        file = s
+                    elif description[-1] == imp.C_EXTENSION:
+                        #print 'finding extension', file.name
+                        s = file.read()
+                        file.close()
+                        file = s
+                    elif False: #description[-1] == imp.PKG_DIRECTORY:
+                        # PKG_DIRECTORY doesn't work yet.
+                        print 'PKG:finding file by name', d[description[-1]], pathname, description
+                        file = pathname + "/__init__.py"
+
+                        try:
+                            file = open(file, 'r')
                             s = file.read()
                             file.close()
                             file = s
-                        elif description[-1] == imp.C_EXTENSION:
-                            #print 'finding extension', file.name
-                            s = file.read()
-                            file.close()
-                            file = s
-                        else:
-                            #print 'finding file by name', d[description[-1]]
+                        except OSError:
+                            file = ImportError("file %s not exist" %  file)
+                    else:
+                        print 'finding file by name', d[description[-1]]
+                        if file:
                             file = file.name
+                        else:
+                            pass
+
                     tio.end()
+                else:
+                    if _verbose:
+                        print 'Warning: failed to find module', name, fullname, file, pathname, description, 'at', path
+
             tcomm.start()
             file, pathname, description = self.comm.bcast((file, pathname, description))
             tcomm.end()
