@@ -7,6 +7,8 @@
 from mpi4py import MPI
 cimport numpy
 import numpy
+import cython
+cimport cython
 
 def sqrtint(x):
     y = int(x ** 0.5) - 1
@@ -29,17 +31,27 @@ class Rotator(object):
     def __init__(self, comm):
         self.comm = comm
     def __enter__(self):
+        self.comm.Barrier()
         for i in range(self.comm.rank):
-            self.comm.barrier()
+            self.comm.Barrier()
     def __exit__(self, type, value, tb):
         for i in range(self.comm.rank, self.comm.size):
-            self.comm.barrier()
+            self.comm.Barrier()
+        self.comm.Barrier()
 
-class Layout(object):
+cdef class Layout(object):
     """ A global all to all communication layout 
         
     """
-    def __init__(self, comm, sendcounts, indices):
+    cdef readonly numpy.ndarray sendcounts
+    cdef readonly numpy.ndarray sendoffsets 
+    cdef readonly numpy.ndarray recvoffsets 
+    cdef readonly numpy.ndarray recvcounts
+    cdef readonly object comm
+    cdef readonly numpy.ndarray indices
+    cdef readonly object newlength
+    cdef readonly object oldlength
+    def __init__(self, comm, sendcounts, indices, recvcounts=None):
         """
         sendcounts is the number of items to send
         indices is the indices of the items in the data array.
@@ -48,16 +60,20 @@ class Layout(object):
         self.comm = comm
         assert self.comm.size == sendcounts.shape[0]
 
-        self.sendcounts = sendcounts
-        self.recvcounts = numpy.empty_like(self.sendcounts)
+        self.sendcounts = numpy.array(sendcounts, order='C')
+        self.recvcounts = numpy.empty_like(self.sendcounts, order='C')
 
-        self.sendoffsets = numpy.zeros_like(self.sendcounts)
-        self.recvoffsets = numpy.zeros_like(self.recvcounts)
+        self.sendoffsets = numpy.zeros_like(self.sendcounts, order='C')
+        self.recvoffsets = numpy.zeros_like(self.recvcounts, order='C')
 
-        # calculate the recv counts array
-        # ! Alltoall
-        self.comm.Alltoall(self.sendcounts, self.recvcounts)
-
+        if recvcounts is None:
+            # calculate the recv counts array
+            # ! Alltoall
+            self.comm.Barrier()
+            self.comm.Alltoall(self.sendcounts, self.recvcounts)
+            self.comm.Barrier()
+        else:
+            self.recvcounts = recvcounts
         self.sendoffsets[1:] = self.sendcounts.cumsum()[:-1]
         self.recvoffsets[1:] = self.recvcounts.cumsum()[:-1]
 
@@ -78,26 +94,26 @@ class Layout(object):
         # fancy indexing does not always return C_contiguous
         # array (2 days to realize this!)
         
-        buffer = data.take(self.indices, axis=0)
-        sendbuffers = numpy.split(buffer, self.sendoffsets[1:])
+        cdef numpy.ndarray buffer = data.take(self.indices, axis=0)
 
         newshape = list(data.shape)
         newshape[0] = self.newlength
 
         # build a dtype for communication
         # this is to avoid 2GB limit from bytes.
-        duplicity = numpy.product(data.shape[1:]) 
+        duplicity = numpy.product(numpy.array(data.shape[1:], 'intp')) 
         itemsize = duplicity * data.dtype.itemsize
         dt = MPI.BYTE.Create_contiguous(itemsize)
         dt.Commit()
 
-        recvbuffer = numpy.empty(newshape, dtype=buffer.dtype)
-        recvbuffers = numpy.split(recvbuffer, self.recvcounts)
-        
+        cdef numpy.ndarray recvbuffer = numpy.empty(newshape, dtype=data.dtype, order='C')
+        self.comm.Barrier()
+
         # now fire
-        self.comm.Alltoallv((buffer, (self.sendcounts, self.sendoffsets), dt), 
+        rt = self.comm.Alltoallv((buffer, (self.sendcounts, self.sendoffsets), dt), 
                             (recvbuffer, (self.recvcounts, self.recvoffsets), dt))
         dt.Free()
+        self.comm.Barrier()
         return recvbuffer
 
 
@@ -128,6 +144,10 @@ class GridND(object):
         self.mystart = numpy.array([g[r] for g, r in zip(grid, rank)])
         self.myend = numpy.array([g[r + 1] for g, r in zip(grid, rank)])
 
+    @cython.boundscheck(False)
+    @cython.wraparound(False)
+    @cython.overflowcheck(False)
+    @cython.nonecheck(False)
     def _fill(self, int mode,
             int Ndim,
             int Npoint,
@@ -151,12 +171,12 @@ class GridND(object):
         cdef int Nrank
         if mode == 1:
             Nrank = self.comm.size
-            offset = numpy.empty(Nrank + 1, dtype='int32')
+            offset = numpy.empty(Nrank + 1, dtype='int32', order='C')
             offset[0] = 0
             for i in range(1, Nrank + 1):
                 offset[i] = offset[i - 1] + counts[i - 1]
             totalsize = offset[Nrank]
-            indices = numpy.empty(totalsize, dtype='int32')
+            indices = numpy.empty(totalsize, dtype='int32', order='C')
 
         for j in range(Ndim):
             dims[j] = self.dims[j]
@@ -211,37 +231,39 @@ class GridND(object):
         cdef int Npoint
         cdef int Ndim
         cdef short int [:, ::1] width
-        Npoint = len(pos)
-        Ndim = len(self.dims)
-        sil = numpy.empty((Ndim, Npoint), dtype='i2')
-        sir = numpy.empty((Ndim, Npoint), dtype='i2')
         cdef numpy.intp_t i
         cdef int j
-        for j in range(Ndim):
-            dim = self.dims[j]
-            if periodic:
-                tmp = numpy.remainder(posT[j], self.grid[j][-1])
-            else:
-                tmp = posT[j]
-            A(sil)[j, :] = _digitize(posT[j] - bleeding, self.grid[j]) - 1
-            A(sir)[j, :] = _digitize(posT[j] + bleeding, self.grid[j])
-            if periodic:
-                for i in range(Npoint):
-                    if sir[j, i] < sil[j, i]:
-                        sir[j, i] = sir[j, i] + dim
-            else:
-                numpy.clip(sil[j], 0, dim, out=A(sil[j]))
-                numpy.clip(sir[j], 0, dim, out=A(sir[j]))
-
-
-
         cdef int [::1] counts
+        cdef int [::1] indices
 
+        Npoint = len(pos)
+        Ndim = len(self.dims)
         counts = numpy.zeros(self.comm.size, dtype='int32')
+
+        if Npoint != 0:
+            sil = numpy.empty((Ndim, Npoint), dtype='i2', order='C')
+            sir = numpy.empty((Ndim, Npoint), dtype='i2', order='C')
+            for j in range(Ndim):
+                dim = self.dims[j]
+                if periodic:
+                    tmp = numpy.remainder(posT[j], self.grid[j][-1])
+                else:
+                    tmp = posT[j]
+                A(sil)[j, :] = _digitize(posT[j] - bleeding, self.grid[j]) - 1
+                A(sir)[j, :] = _digitize(posT[j] + bleeding, self.grid[j])
+                if periodic:
+                    for i in range(Npoint):
+                        if sir[j, i] < sil[j, i]:
+                            sir[j, i] = sir[j, i] + dim
+                else:
+                    numpy.clip(sil[j], 0, dim, out=A(sil[j]))
+                    numpy.clip(sir[j], 0, dim, out=A(sir[j]))
+        else:
+            sil = numpy.empty((Ndim, 1), dtype='i2', order='C')
+            sir = numpy.empty((Ndim, 1), dtype='i2', order='C')
 
         self._fill(0, Ndim, Npoint, sil, sir, periodic, counts)
 
-        cdef int [::1] indices
         # now lets build the indices array.
         indices = self._fill(1, Ndim, Npoint, sil, sir, periodic, counts)
 
