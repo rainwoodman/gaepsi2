@@ -18,6 +18,22 @@ from color import CoolWarm, N, NL
 from sys import argv
 from mpi4py import MPI
 
+class UniqueBarrier(object):
+    def __init__(self, comm):
+        self.comm = comm
+
+    def check(self, tag):
+        self.comm.Barrier()
+        newtag = None
+        if self.comm.rank == 0:
+            newtag = tag
+        newtag = self.comm.bcast(newtag)
+        if newtag != tag:
+            raise Exception("rank = %d, tag is %s, on root tag is %s" %
+                    (self.comm.rank, tag, newtag))
+        self.comm.Barrier()
+        if self.comm.rank == 0:
+            print tag
 #bigfile = BigFile(argv[1])
 
 config = argv[1]
@@ -91,7 +107,6 @@ def buildgrid(PX, NX):
 def process_chunk(image,
        BoxSize,
        pos, sml, data, d2d=None):
-
     # apply a data mask
     mask = (data!= 0).any(axis=-1)
 
@@ -135,19 +150,17 @@ def process_chunk(image,
     pos[:, 1] *= PIXEL_WIDTH / 2.
 
     sml[:] *= PIXEL_WIDTH / FULL_SIZE[1]
-
     if d2d is not None:
-        layout = d2d.decompose(pos[:, :2], bleeding=sml)
 
+        layout = d2d.decompose(pos[:, :2], bleeding=sml)
         pos = layout.exchange(pos)
         sml = layout.exchange(sml)
         data = layout.exchange(data)
-
+        
         # to rank device coordinate
         pos[:, 0] -= d2d.mystart[0]
         pos[:, 1] -= d2d.mystart[1]
 
-    print 'before paint', len(pos)
     painter.paint(pos, sml, data, image)
 
     if d2d is not None:
@@ -166,7 +179,6 @@ def process_chunk(image,
             imgstats = None
     
         comm = d2d.comm
-        comm.barrier()
         with domain.Rotator(comm):
             print comm.rank, '----'
             print 'rank', 'pos', comm.rank, pos.shape, image.shape, data.shape
@@ -175,7 +187,6 @@ def process_chunk(image,
             print imgstats
     else:
         print 'd2d is None'
-
 
 def main(comm):
     posblock = bigfile.open(POS_BLOCK)
@@ -233,6 +244,7 @@ def main(comm):
         process_chunk(image, BoxSize,
                 pos, sml, data, d2d=d2d)
 
+        comm.Barrier()
         if comm.rank == 0:
             print 'chunk', i, '/', NumPartTotal, cstart, cend
         
