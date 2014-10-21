@@ -70,8 +70,28 @@ def test4():
     #inspect(layout)
     assert (layout.sendcounts == [36, 30, 36, 30, 25, 30, 36, 30, 36]).all()
 
+def test5():
+    """ empty pos """
+    print 'test5'
+    from mpi4py import MPI
+
+    dcop = domain.GridND(grid, 
+            comm=MPI.COMM_WORLD,
+            periodic=True)
+    pos = numpy.empty((0, 2), dtype='f4')
+    data = numpy.empty((0, 4), dtype='f4')
+    if dcop.comm.rank == 0:
+        pos = numpy.array(list(numpy.ndindex((10, 10))))[:1]
+        data = numpy.ones((len(pos), 4), dtype='f4')
+    if dcop.comm.rank == 4:
+        pos = numpy.array(list(numpy.ndindex((10, 10))))[9:10]
+        data = numpy.ones((len(pos), 4), dtype='f4')
+    layout = dcop.decompose(pos, bleeding=1)
+    newdata = layout.exchange(data)
+    print newdata
 
 test1()
 test2()
 test3()
 test4()
+test5()
