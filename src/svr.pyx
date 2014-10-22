@@ -16,6 +16,9 @@ Survey Volume Remapping in Gaepsi
 import numpy
 cimport numpy
 
+import cython
+cimport cython
+
 cdef extern from 'c/transform.c':
     pass
 cdef extern from 'c/svremap.c':
@@ -49,6 +52,10 @@ def remap_query_size(M):
     svremap_init(&r, &matrix[0, 0])
     return numpy.array(<double [:3]> r.size).copy()
 
+@cython.boundscheck(False)
+@cython.wraparound(False)
+@cython.overflowcheck(False)
+@cython.nonecheck(False)
 def remap(pos, M, output=None):
     """ the output if provided shall be of shape [, 3]
         pos shall be of shape [, 3], and between [0, 1] in all dimensions.
