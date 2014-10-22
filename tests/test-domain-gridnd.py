@@ -10,6 +10,7 @@ fakecomm = lambda : None
 
 fakecomm.size = 9
 fakecomm.Alltoall = lambda a, b: None
+fakecomm.Barrier = lambda : None
 grid = [
         [0, 3, 6, 9] for dir in [0, 1]
         ]
@@ -94,4 +95,4 @@ test1()
 test2()
 test3()
 test4()
-test5()
+#test5()
