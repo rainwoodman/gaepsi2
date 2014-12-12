@@ -21,8 +21,11 @@ fakecomm.rank = 0
 
 def inspect(layout):
     art = numpy.zeros((10, 10, 2), 'c1')
-    for t, chunk in enumerate(numpy.split(pos[layout.indices], 
-        layout.sendcounts.cumsum()[:fakecomm.size - 1], axis=0)):
+    for t, chunk in enumerate(numpy.split(
+                pos[layout.indices], 
+                layout.sendcounts.cumsum()[0:fakecomm.size - 1], 
+                axis=0)):
+        if len(chunk) == 0: continue
         art.fill('x')
         for i, j in numpy.ndindex(10, 10):
             rank = (i //3 ) * 3 + j // 3
@@ -37,38 +40,54 @@ def inspect(layout):
             art[p[0], p[1], 1] = '%d' % t
         print art.view(dtype='S2').reshape(10, 10)
 
-def test1():
-    """ no bleeding, no periodic """
-    dcop = domain.GridND(grid, 
-            comm=fakecomm,
-            periodic=False)
-    layout = dcop.decompose(pos, bleeding=0)
-    assert (layout.sendcounts == 9).all()
+def test0():
+    """ 
+    this is to test there are no duplicated sent into a process
+    """
+    grid = [[0, 10], [0, 10]]
+    fakecomm = lambda : None
 
-def test2():
-    """ no bleeding, periodic """
+    fakecomm.rank = 0
+    fakecomm.size = 1
+    fakecomm.Alltoall = lambda a, b: None
+    fakecomm.Barrier = lambda : None
     dcop = domain.GridND(grid, 
             comm=fakecomm,
             periodic=True)
-    layout = dcop.decompose(pos, bleeding=0)
+    layout = dcop.decompose(pos, smoothing=1)
+    assert len(layout.indices) == 100
+def test1():
+    """ no smoothing, no periodic """
+    dcop = domain.GridND(grid, 
+            comm=fakecomm,
+            periodic=False)
+    layout = dcop.decompose(pos, smoothing=0)
+    assert (layout.sendcounts == 9).all()
+
+def test2():
+    """ no smoothing, periodic """
+    dcop = domain.GridND(grid, 
+            comm=fakecomm,
+            periodic=True)
+    layout = dcop.decompose(pos, smoothing=0)
     #inspect(layout)
     assert (layout.sendcounts == [16, 12, 12, 12, 9, 9, 12, 9, 9]).all()
 
 def test3():
-    """ with bleeding, no periodic"""
+    """ with smoothing, no periodic"""
     dcop = domain.GridND(grid, 
             comm=fakecomm,
             periodic=False)
-    layout = dcop.decompose(pos, bleeding=1)
+    layout = dcop.decompose(pos, smoothing=1)
 #    inspect(layout)
     assert (layout.sendcounts == [16, 20, 20, 20, 25, 25, 20, 25, 25]).all()
 
 def test4():
-    """ with bleeding, periodic"""
+    """ with smoothing, periodic"""
     dcop = domain.GridND(grid, 
             comm=fakecomm,
             periodic=True)
-    layout = dcop.decompose(pos, bleeding=1)
+    layout = dcop.decompose(pos, smoothing=1)
     #inspect(layout)
     assert (layout.sendcounts == [36, 30, 36, 30, 25, 30, 36, 30, 36]).all()
 
@@ -88,7 +107,7 @@ def test5():
     if dcop.comm.rank == 4:
         pos = numpy.array(list(numpy.ndindex((10, 10))), dtype='f4')[9:10]
         data = numpy.ones((len(pos), 4), dtype='f4')
-    layout = dcop.decompose(pos, bleeding=1)
+    layout = dcop.decompose(pos, smoothing=1)
     newdata = layout.exchange(data)
     newpos = layout.exchange(pos)
     for i in range(dcop.comm.size):
@@ -116,13 +135,14 @@ def test_wrongdtype():
     if dcop.comm.rank == 4:
         pos = numpy.array(list(numpy.ndindex((10, 10))), dtype='f8')[9:10]
         data = numpy.ones((len(pos), 4), dtype='f4')
-    layout = dcop.decompose(pos, bleeding=1)
+    layout = dcop.decompose(pos, smoothing=1)
     try:
         newpos = layout.exchange(pos)
         raise AssertionError
     except TypeError as e:
         print 'Expected Exception', e
 
+test0()
 test1()
 test2()
 test3()

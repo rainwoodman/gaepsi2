@@ -131,8 +131,12 @@ class GridND(object):
         self.mystart = numpy.array([g[r] for g, r in zip(grid, rank)])
         self.myend = numpy.array([g[r + 1] for g, r in zip(grid, rank)])
 
-    def decompose(self, pos, bleeding=0):
+    def decompose(self, pos, smoothing=0):
         """ decompose the domain according to pos,
+
+            smoothing is the size of a particle:
+                any particle that intersects the domain will
+                be transported to the domain.
 
             returns a Layout object that can be used
             to exchange data
@@ -156,8 +160,8 @@ class GridND(object):
                     tmp = numpy.remainder(posT[j], self.grid[j][-1])
                 else:
                     tmp = posT[j]
-                sil[j, :] = self._digitize(tmp - bleeding, self.grid[j]) - 1
-                sir[j, :] = self._digitize(tmp + bleeding, self.grid[j])
+                sil[j, :] = self._digitize(tmp - smoothing, self.grid[j]) - 1
+                sir[j, :] = self._digitize(tmp + smoothing, self.grid[j])
                 if not periodic:
                     numpy.clip(sil[j], 0, dim, out=sil[j])
                     numpy.clip(sir[j], 0, dim, out=sir[j])
@@ -178,30 +182,3 @@ class GridND(object):
 
         return layout
 
-    def decompose_patches(self, patches):
-        """ decompose patches to the grid. 
-            A patch is
-                [(x0, x1), (y0, y1), ...]
-                of shape (Ndim, 2)
-            patches is of shape
-                (Npatch, Ndim, 2)
-            where x0 is inclusive and x1 is exclusive.
-        """
-        Npatch = len(patches)
-        Ndim = len(self.dims)
-
-        assert patches.shape[2] == Ndim
-
-        periodic = self.periodic
-        if Npatch != 0:
-            sil = numpy.empty((Ndim, Npatch), dtype='i2', order='C')
-            sir = numpy.empty((Ndim, Npatch), dtype='i2', order='C')
-            for j in range(Ndim):
-                dim = self.dims[j]
-                sil[j, :] = self._digitize(patches[:, j, 0], self.grid[j]) - 1
-                sir[j, :] = self._digitize(patches[:, j, 1], self.grid[j])
-                if not periodic:
-                    numpy.clip(sil[j], 0, dim, out=sil[j])
-                    numpy.clip(sir[j], 0, dim, out=sir[j])
-        else:
-            pass
