@@ -4,7 +4,7 @@ import numpy
 
 #mesh = numpy.zeros(shape=(Nmesh, ) * Ndim, 
 #        dtype=dtype, order='C')
-def cic(pos, mesh, boxsize=1.0, weights=1.0):
+def cic(pos, mesh, boxsize=1.0, weights=1.0, periodic=False):
     """ CIC approximation from points to Nmesh,
         each point has a weight given by weights.
         This does not give density.
@@ -12,7 +12,6 @@ def cic(pos, mesh, boxsize=1.0, weights=1.0):
         pos.shape is (?, 3).
 
         the mesh is an array of size (Nmesh, Nmesh, Nmesh)
-        We assume a periodic boundary
 
         pos[:, i] is mesh.shape[i]
         thus z is the fast moving index
@@ -32,13 +31,21 @@ def cic(pos, mesh, boxsize=1.0, weights=1.0):
           wchunk = weights
         else:
           wchunk = weights[chunk]
-        gridpos = numpy.remainder(pos[chunk], BoxSize) * (Nmesh / BoxSize)
-        intpos = numpy.intp(gridpos)
+        if periodic:
+            gridpos = numpy.remainder(pos[chunk], BoxSize) * (Nmesh / BoxSize)
+            mode = 'wrap'
+            intpos = numpy.intp(gridpos)
+        else:
+            gridpos = pos[chunk] * (Nmesh / BoxSize)
+            mode = 'raise'
+            intpos = numpy.intp(numpy.floor(gridpos))
         for i, neighbour in enumerate(neighbours):
             neighbour = neighbour[None, :]
             targetpos = intpos + neighbour
+
             targetindex = numpy.ravel_multi_index(
-                    targetpos.T, mesh.shape, mode='wrap')
+                    targetpos.T, mesh.shape, mode=mode)
+
             kernel = (1.0 - numpy.abs(gridpos - targetpos)).prod(axis=-1)
             add = wchunk * kernel
             u, label = numpy.unique(targetindex, return_inverse=True)
