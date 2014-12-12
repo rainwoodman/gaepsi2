@@ -150,29 +150,52 @@ class GridND(object):
                     tmp = numpy.remainder(posT[j], self.grid[j][-1])
                 else:
                     tmp = posT[j]
-                sil[j, :] = self._digitize(posT[j] - bleeding, self.grid[j]) - 1
-                sir[j, :] = self._digitize(posT[j] + bleeding, self.grid[j])
-                if periodic:
-                    mask = sir[j] < sil[j]
-                    sir[j][mask] += dim
-                else:
+                sil[j, :] = self._digitize(tmp[j] - bleeding, self.grid[j]) - 1
+                sir[j, :] = self._digitize(tmp[j] + bleeding, self.grid[j])
+                if not periodic:
                     numpy.clip(sil[j], 0, dim, out=sil[j])
                     numpy.clip(sir[j], 0, dim, out=sir[j])
+
+            self._fill(0, counts, self.dims, sil, sir, periodic)
+
+            # now lets build the indices array.
+            indices = self._fill(1, counts, self.dims, sil, sir, periodic)
+            indices = numpy.array(indices, copy=False)
         else:
-            # avoid cython casting error for zero length arrays
-            sil = numpy.empty((Ndim, 1), dtype='i2', order='C')
-            sir = numpy.empty((Ndim, 1), dtype='i2', order='C')
-
-        self._fill(0, counts, self.dims, sil, sir, periodic)
-
-        # now lets build the indices array.
-        indices = self._fill(1, counts, self.dims, sil, sir, periodic)
+            indices = numpy.empty(0, dtype='int32')
 
         # create the layout object
         layout = Layout(
                 comm=self.comm,
                 sendcounts=counts,
-                indices=numpy.array(indices))
+                indices=indices)
 
         return layout
 
+    def decompose_patches(self, patches):
+        """ decompose patches to the grid. 
+            A patch is
+                [(x0, x1), (y0, y1), ...]
+                of shape (Ndim, 2)
+            patches is of shape
+                (Npatch, Ndim, 2)
+            where x0 is inclusive and x1 is exclusive.
+        """
+        Npatch = len(patches)
+        Ndim = len(self.dims)
+
+        assert patches.shape[2] == Ndim
+
+        periodic = self.periodic
+        if Npatch != 0:
+            sil = numpy.empty((Ndim, Npatch), dtype='i2', order='C')
+            sir = numpy.empty((Ndim, Npatch), dtype='i2', order='C')
+            for j in range(Ndim):
+                dim = self.dims[j]
+                sil[j, :] = self._digitize(patches[:, j, 0], self.grid[j]) - 1
+                sir[j, :] = self._digitize(patches[:, j, 1], self.grid[j])
+                if not periodic:
+                    numpy.clip(sil[j], 0, dim, out=sil[j])
+                    numpy.clip(sir[j], 0, dim, out=sir[j])
+        else:
+            pass
