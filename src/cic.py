@@ -2,16 +2,15 @@
 #
 import numpy
 
-def cic(pos, mesh, boxsize=1.0, weights=1.0, mode="raise"):
+def cic(pos, mesh, weights=1.0, mode="raise"):
     """ CIC approximation from points to Nmesh,
         each point has a weight given by weights.
         This does not give density.
         pos is supposed to be row vectors. aka for 3d input
         pos.shape is (?, 3).
 
-        the mesh is an array of size (Nmesh, Nmesh, Nmesh)
+        pos[:, i] should have been normalized in the range of [ 0,  mesh.shape[i] )
 
-        pos[:, i] is mesh.shape[i]
         thus z is the fast moving index
 
         mode can be :
@@ -23,10 +22,8 @@ def cic(pos, mesh, boxsize=1.0, weights=1.0, mode="raise"):
     """
     pos = numpy.array(pos)
     chunksize = 1024 * 16 * 4
-    BoxSize = 1.0 * boxsize
     Ndim = pos.shape[-1]
     Np = pos.shape[0]
-    Nmesh = mesh.shape[0]
 
     neighbours = ((numpy.arange(2 ** Ndim)[:, None] >> \
             numpy.arange(Ndim)[None, :]) & 1)
@@ -37,15 +34,16 @@ def cic(pos, mesh, boxsize=1.0, weights=1.0, mode="raise"):
         else:
           wchunk = weights[chunk]
         if mode == 'wrap':
-            gridpos = numpy.remainder(pos[chunk], BoxSize) * (Nmesh / BoxSize)
+            gridpos = numpy.remainder(pos[chunk], 
+                    numpy.array(mesh.shape)[None, :]) 
             rmi_mode = 'wrap'
             intpos = numpy.intp(gridpos)
         elif mode == 'raise':
-            gridpos = pos[chunk] * (Nmesh / BoxSize)
+            gridpos = pos[chunk] 
             rmi_mode = 'raise'
             intpos = numpy.intp(numpy.floor(gridpos))
         elif mode == 'ignore':
-            gridpos = pos[chunk] * (Nmesh / BoxSize)
+            gridpos = pos[chunk] 
             rmi_mode = 'raise'
             intpos = numpy.intp(numpy.floor(gridpos))
 
