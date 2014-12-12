@@ -59,6 +59,12 @@ class Layout(object):
             data shall be of the same length of the input position
             that builds the layout
         """
+        # lets check the data type first
+        dtypes = self.comm.allgather(data.dtype.str)
+        if len(set(dtypes)) != 1:
+            raise TypeError('dtype of input differ on different ranks. %s' %
+                    str(dtypes))
+
         #build buffer
         # Watch out: 
         # take produces C-contiguous array, 
@@ -150,8 +156,8 @@ class GridND(object):
                     tmp = numpy.remainder(posT[j], self.grid[j][-1])
                 else:
                     tmp = posT[j]
-                sil[j, :] = self._digitize(tmp[j] - bleeding, self.grid[j]) - 1
-                sir[j, :] = self._digitize(tmp[j] + bleeding, self.grid[j])
+                sil[j, :] = self._digitize(tmp - bleeding, self.grid[j]) - 1
+                sir[j, :] = self._digitize(tmp + bleeding, self.grid[j])
                 if not periodic:
                     numpy.clip(sil[j], 0, dim, out=sil[j])
                     numpy.clip(sir[j], 0, dim, out=sir[j])

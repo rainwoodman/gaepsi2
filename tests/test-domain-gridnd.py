@@ -1,5 +1,7 @@
+from mpi4py import MPI
 import sys
 import os.path
+import traceback
 
 d = os.path.join(os.path.dirname(__file__), '..', 'src')
 sys.path.append(d)
@@ -15,7 +17,6 @@ grid = [
         [0, 3, 6, 9] for dir in [0, 1]
         ]
 pos = numpy.array(list(numpy.ndindex((10, 10))))
-
 fakecomm.rank = 0
 
 def inspect(layout):
@@ -73,8 +74,8 @@ def test4():
 
 def test5():
     """ empty pos """
-    print 'test5'
-    from mpi4py import MPI
+
+    assert MPI.COMM_WORLD.size ==9
 
     dcop = domain.GridND(grid, 
             comm=MPI.COMM_WORLD,
@@ -82,17 +83,50 @@ def test5():
     pos = numpy.empty((0, 2), dtype='f4')
     data = numpy.empty((0, 4), dtype='f4')
     if dcop.comm.rank == 0:
-        pos = numpy.array(list(numpy.ndindex((10, 10))))[:1]
+        pos = numpy.array(list(numpy.ndindex((10, 10))), dtype='f4')[:1]
         data = numpy.ones((len(pos), 4), dtype='f4')
     if dcop.comm.rank == 4:
-        pos = numpy.array(list(numpy.ndindex((10, 10))))[9:10]
+        pos = numpy.array(list(numpy.ndindex((10, 10))), dtype='f4')[9:10]
         data = numpy.ones((len(pos), 4), dtype='f4')
     layout = dcop.decompose(pos, bleeding=1)
     newdata = layout.exchange(data)
-    print newdata
+    newpos = layout.exchange(pos)
+    for i in range(dcop.comm.size):
+        dcop.comm.barrier()
+        if dcop.comm.rank == i:
+            print dcop.comm.rank, 'pos', pos
+            #print 'indices', layout.indices, 'sc', layout.sendcounts
+            print dcop.comm.rank, 'newpos', newpos
+            print 'data', newdata
+    # I am still not sure what the correct output is so just dump them out.
+
+def test_wrongdtype():
+    """ empty pos """
+
+    assert MPI.COMM_WORLD.size == 9
+
+    dcop = domain.GridND(grid, 
+            comm=MPI.COMM_WORLD,
+            periodic=True)
+    pos = numpy.empty((0, 2), dtype='f4')
+    data = numpy.empty((0, 4), dtype='f4')
+    if dcop.comm.rank == 0:
+        pos = numpy.array(list(numpy.ndindex((10, 10))), dtype='f8')[:1]
+        data = numpy.ones((len(pos), 4), dtype='f4')
+    if dcop.comm.rank == 4:
+        pos = numpy.array(list(numpy.ndindex((10, 10))), dtype='f8')[9:10]
+        data = numpy.ones((len(pos), 4), dtype='f4')
+    layout = dcop.decompose(pos, bleeding=1)
+    try:
+        newpos = layout.exchange(pos)
+        raise AssertionError
+    except TypeError as e:
+        print 'Expected Exception', e
 
 test1()
 test2()
 test3()
 test4()
-#test5()
+test5()
+test_wrongdtype()
+
