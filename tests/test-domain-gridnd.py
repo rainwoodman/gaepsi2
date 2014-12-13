@@ -56,6 +56,24 @@ def test0():
             periodic=True)
     layout = dcop.decompose(pos, smoothing=1)
     assert len(layout.indices) == 100
+
+    # now test with 2 processes
+    # this found a bug in the bubble sort
+    fakecomm = lambda : None
+
+    fakecomm.rank = 0
+    fakecomm.size = 2
+    grid = [[0, 5, 10], [0, 10]]
+    fakecomm.Alltoall = lambda a, b: None
+    fakecomm.Barrier = lambda : None
+
+    dcop = domain.GridND(grid, 
+            comm=fakecomm,
+            periodic=True)
+    layout = dcop.decompose(pos, smoothing=2)
+    assert layout.sendcounts[0] == 90
+    assert layout.sendcounts[1] == 90
+
 def test1():
     """ no smoothing, no periodic """
     dcop = domain.GridND(grid, 

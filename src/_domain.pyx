@@ -83,6 +83,7 @@ def gridnd_fill(
                     target = target_list[kk+1]
                     target_list[kk+1] = target_list[kk]
                     target_list[kk] = target
+                    kk = kk - 1
                 else:
                     break
 
@@ -101,6 +102,8 @@ def gridnd_fill(
         for k in range(patchsize):
             if target == target_list[k]:
                 continue
+            if target_list[k] < target:
+                raise Exception("failed")
             target = target_list[k]
             if mode == 0:
                 counts[target] += 1
