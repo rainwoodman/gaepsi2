@@ -2,7 +2,7 @@
 #
 import numpy
 
-def cic(pos, mesh, weights=1.0, mode="raise"):
+def cic(pos, mesh, weights=1.0, mode="raise", period=None):
     """ CIC approximation from points to Nmesh,
         each point has a weight given by weights.
         This does not give density.
@@ -16,8 +16,9 @@ def cic(pos, mesh, weights=1.0, mode="raise"):
         mode can be :
             "raise" : raise exceptions if a particle is painted
              outside the mesh
-            "wrap"  : wrap with periodic boundry
             "ignore": ignore particle contribution outside of the mesh
+        period can be a scalar or of length len(mesh.shape). if period is given
+        the particles are wrapped by the period.
 
     """
     pos = numpy.array(pos)
@@ -33,12 +34,7 @@ def cic(pos, mesh, weights=1.0, mode="raise"):
           wchunk = weights
         else:
           wchunk = weights[chunk]
-        if mode == 'wrap':
-            gridpos = numpy.remainder(pos[chunk], 
-                    numpy.array(mesh.shape)[None, :]) 
-            rmi_mode = 'wrap'
-            intpos = numpy.intp(gridpos)
-        elif mode == 'raise':
+        if mode == 'raise':
             gridpos = pos[chunk] 
             rmi_mode = 'raise'
             intpos = numpy.intp(numpy.floor(gridpos))
@@ -53,6 +49,9 @@ def cic(pos, mesh, weights=1.0, mode="raise"):
 
             kernel = (1.0 - numpy.abs(gridpos - targetpos)).prod(axis=-1)
             add = wchunk * kernel
+
+            if period is not None:
+                numpy.remainder(targetpos, period, targetpos)
 
             if mode == 'ignore':
                 # filter out those outside of the mesh
