@@ -18,12 +18,30 @@ class Rotator(object):
         for i in range(self.comm.rank, self.comm.size):
             self.comm.Barrier()
         self.comm.Barrier()
+def bincountv(x, weights, minlength=None, dtype=None):
+    """ bincount with vector weights """
+    weights = numpy.array(weights)
+    if minlength == None:
+        if len(x) == 0:
+            minlength = 0
+        else:
+            minlength = x.max() + 1
+    if dtype is None:
+        dtype = weights.dtype
+
+    shape = [minlength] + list(weights.shape[1:])
+
+    out = numpy.empty(shape, dtype=dtype)
+    for index in numpy.ndindex(*shape[1:]):
+        ind = tuple([Ellipsis] + list(index))
+        out[ind] = numpy.bincount(x, weights[ind], minlength=minlength)
+    return out
 
 class Layout(object):
     """ A global all to all communication layout 
         
     """
-    def __init__(self, comm, sendcounts, indices, recvcounts=None):
+    def __init__(self, comm, oldlength, sendcounts, indices, recvcounts=None):
         """
         sendcounts is the number of items to send
         indices is the indices of the items in the data array.
@@ -49,16 +67,21 @@ class Layout(object):
         self.sendoffsets[1:] = self.sendcounts.cumsum()[:-1]
         self.recvoffsets[1:] = self.recvcounts.cumsum()[:-1]
 
-        self.oldlength = self.sendcounts.sum()
+        self.oldlength = oldlength
         self.newlength = self.recvcounts.sum()
 
         self.indices = indices
 
     def exchange(self, data):
-        """ exchange the data globally according to the layout
+        """ exchange the data globally according to the layout;
+
             data shall be of the same length of the input position
             that builds the layout
+
         """
+        if len(data) != self.oldlength:
+            raise ValueError(
+            'the length of data does not match that used to build the layout')
         # lets check the data type first
         dtypes = self.comm.allgather(data.dtype.str)
         if len(set(dtypes)) != 1:
@@ -93,6 +116,64 @@ class Layout(object):
         dt.Free()
         self.comm.Barrier()
         return recvbuffer
+
+    def gather(self, data, mode='sum'):
+        """ 
+            pull the data from other ranks back to its original hosting rank
+            values of mirror items are added. 
+            mode can be 'sum' or 'any', or 'mean'. 
+        """
+        # lets check the data type first
+        if mode not in ['sum', 'any', 'mean']:
+            raise ValueError('mode has to be "sum" or "any", "mean"')
+
+        if len(data) != self.newlength:
+            raise ValueError(
+            'the length of data does not match result of a domain.exchange')
+
+        dtypes = self.comm.allgather(data.dtype.str)
+        if len(set(dtypes)) != 1:
+            raise TypeError('dtype of input differ on different ranks. %s' %
+                    str(dtypes))
+
+
+        newshape = list(data.shape)
+        newshape[0] = len(self.indices)
+
+        # build a dtype for communication
+        # this is to avoid 2GB limit from bytes.
+        duplicity = numpy.product(numpy.array(data.shape[1:], 'intp')) 
+        itemsize = duplicity * data.dtype.itemsize
+        dt = MPI.BYTE.Create_contiguous(itemsize)
+        dt.Commit()
+
+        recvbuffer = numpy.empty(newshape, dtype=data.dtype, order='C')
+        self.comm.Barrier()
+
+        # now fire
+        rt = self.comm.Alltoallv((data, (self.recvcounts, self.recvoffsets), dt), 
+                            (recvbuffer, (self.sendcounts, self.sendoffsets), dt))
+        dt.Free()
+        self.comm.Barrier()
+
+        if self.oldlength == 0:
+            newshape[0] = 0
+            return numpy.empty(newshape, data.dtype)
+
+        if mode == 'sum':
+            return bincountv(self.indices, recvbuffer, minlength=self.oldlength)
+        if mode == 'mean':
+            N = numpy.bincount(self.indices, minlength=self.oldlength)
+            s = [self.oldlength] + [-1] * (len(newshape) - 1)
+            N = N.reshape(s)
+            return \
+                    bincountv(self.indices, recvbuffer, minlength=self.oldlength) / N
+        elif mode == 'any':
+            mask = numpy.empty(len(self.indices), dtype='?')
+            if len(mask) > 0:
+                mask[0] = True
+                mask[1:] = self.indices[1:] != self.indices[:-1]
+            return recvbuffer[mask]
 
 class GridND(object):
     """
@@ -177,6 +258,7 @@ class GridND(object):
         # create the layout object
         layout = Layout(
                 comm=self.comm,
+                oldlength=Npoint,
                 sendcounts=counts,
                 indices=indices)
 

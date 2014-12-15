@@ -128,13 +128,21 @@ def test5():
     layout = dcop.decompose(pos, smoothing=1)
     newdata = layout.exchange(data)
     newpos = layout.exchange(pos)
+    oldpos = layout.gather(newpos, mode='any')
+    olddata = layout.gather(newdata, mode='mean')
     for i in range(dcop.comm.size):
         dcop.comm.barrier()
         if dcop.comm.rank == i:
             print dcop.comm.rank, 'pos', pos
+            print 'oldpos', oldpos
+            print 'data', data
+            print 'olddata', olddata
             #print 'indices', layout.indices, 'sc', layout.sendcounts
-            print dcop.comm.rank, 'newpos', newpos
-            print 'data', newdata
+            print 'newpos', newpos
+            print 'newdata', newdata
+            print '-----'
+    assert numpy.allclose(oldpos, pos)
+    assert numpy.allclose(olddata, data)
     # I am still not sure what the correct output is so just dump them out.
 
 def test_wrongdtype():
