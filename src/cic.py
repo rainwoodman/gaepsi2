@@ -2,8 +2,8 @@
 #
 import numpy
 
-def cic(pos, mesh, weights=1.0, mode="raise", period=None):
-    """ CIC approximation from points to Nmesh,
+def paint(pos, mesh, weights=1.0, mode="raise", period=None):
+    """ CIC approximation (trilinear), painting points to Nmesh,
         each point has a weight given by weights.
         This does not give density.
         pos is supposed to be row vectors. aka for 3d input
@@ -68,4 +68,53 @@ def cic(pos, mesh, weights=1.0, mode="raise", period=None):
                 mesh.flat[u] += numpy.bincount(label, add, minlength=len(u))
 
     return mesh
+
+def readout(mesh, pos, mode="raise", period=None):
+    """ CIC approximation, reading out mesh values at pos,
+        see document of paint. 
+    """
+    pos = numpy.array(pos)
+    value = numpy.zeros(len(pos), dtype='f8')
+    chunksize = 1024 * 16 * 4
+    Ndim = pos.shape[-1]
+    Np = pos.shape[0]
+
+    neighbours = ((numpy.arange(2 ** Ndim)[:, None] >> \
+            numpy.arange(Ndim)[None, :]) & 1)
+    for start in range(0, Np, chunksize):
+        chunk = slice(start, start+chunksize)
+        if mode == 'raise':
+            gridpos = pos[chunk] 
+            rmi_mode = 'raise'
+            intpos = numpy.intp(numpy.floor(gridpos))
+        elif mode == 'ignore':
+            gridpos = pos[chunk] 
+            rmi_mode = 'raise'
+            intpos = numpy.intp(numpy.floor(gridpos))
+
+        for i, neighbour in enumerate(neighbours):
+            neighbour = neighbour[None, :]
+            targetpos = intpos + neighbour
+
+            kernel = (1.0 - numpy.abs(gridpos - targetpos)).prod(axis=-1)
+
+            if period is not None:
+                numpy.remainder(targetpos, period, targetpos)
+
+            if mode == 'ignore':
+                # filter out those outside of the mesh
+                mask = (targetpos >= 0).all(axis=-1)
+                for d in range(Ndim):
+                    mask &= (targetpos[..., d] < mesh.shape[d])
+                targetpos = targetpos[mask]
+                kernel = kernel[mask]
+            else:
+                mask = Ellipsis
+
+            if len(targetpos) > 0:
+                targetindex = numpy.ravel_multi_index(
+                        targetpos.T, mesh.shape, mode=rmi_mode)
+                value[chunk][mask] += kernel * mesh.flat[targetindex]
+    return value
+
 

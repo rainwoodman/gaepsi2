@@ -6,69 +6,69 @@ import numpy
 d = os.path.join(os.path.dirname(__file__), '..', 'src')
 sys.path.append(d)
 import cic
-def test_cic1():
+def test_paint1():
     mesh = numpy.zeros((2, 2))
     pos = [[-.1, 0.0]]
-    cic.cic(pos, mesh, period=2.0)
+    cic.paint(pos, mesh, period=2.0)
     assert numpy.allclose(
             mesh, 
             [[ 0.9,  0. ],
              [ 0.1,  0. ]]
             )
 
-def test_cic2():
+def test_paint2():
     mesh = numpy.zeros((2, 2))
     pos = [[.1, 0.0]]
-    cic.cic(pos, mesh, period=2.0)
+    cic.paint(pos, mesh, period=2.0)
     assert numpy.allclose(
             mesh, 
             [[ 0.9,  0. ],
              [ 0.1,  0. ]]
             )
 
-def test_cic3():
+def test_paint3():
     mesh = numpy.zeros((2, 2))
     pos = [[0.0, 0.1]]
-    cic.cic(pos, mesh, period=2.0)
+    cic.paint(pos, mesh, period=2.0)
     assert numpy.allclose(
             mesh, 
             [[ 0.9,  0.1 ],
              [ 0.0,  0. ]]
             )
 
-def test_cic4():
+def test_paint4():
     mesh = numpy.zeros((2, 2))
     pos = [[0.0, -0.1]]
-    cic.cic(pos, mesh, period=2.0)
+    cic.paint(pos, mesh, period=2.0)
     assert numpy.allclose(
             mesh, 
             [[ 0.9,  0.1 ],
              [ 0.0,  0. ]]
             )
 
-def test_cic5():
+def test_paint5():
     mesh = numpy.zeros((2, 2))
     pos = [[1.1, 0.0]]
-    cic.cic(pos, mesh, period=2.0)
+    cic.paint(pos, mesh, period=2.0)
     assert numpy.allclose(
             mesh, 
             [[ 0.1,  0.0 ],
              [ 0.9,  0. ]]
             )
 
-def test_cic6():
+def test_paint6():
     mesh = numpy.zeros((2, 2))
     pos = [[1.1, 2.0]]
-    cic.cic(pos, mesh, period=2.0)
+    cic.paint(pos, mesh, period=2.0)
     assert numpy.allclose(
             mesh, 
             [[ 0.1,  0.0 ],
              [ 0.9,  0. ]]
             )
-def test_cic1():
+def test_paint1():
     mesh = numpy.zeros((2, 2))
     pos = [[-.1, 0.0]]
-    cic.cic(pos, mesh, period=2.0)
+    cic.paint(pos, mesh, period=2.0)
     assert numpy.allclose(
             mesh, 
             [[ 0.9,  0. ],
@@ -76,106 +76,106 @@ def test_cic1():
             )
 
 
-def test_cicraise1():
+def test_paintraise1():
     mesh = numpy.zeros((2, 2))
     pos = [[0.1, 0.0]]
-    cic.cic(pos, mesh, mode='raise')
+    cic.paint(pos, mesh, mode='raise')
     assert numpy.allclose(
             mesh, 
             [[ 0.9,  0.0 ],
              [ 0.1,  0. ]]
             )
 
-def test_cicraise2():
+def test_paintraise2():
     mesh = numpy.zeros((2, 2))
     pos = [[0.0, 0.0]]
-    cic.cic(pos, mesh, mode='raise')
+    cic.paint(pos, mesh, mode='raise')
     assert numpy.allclose(
             mesh, 
             [[ 1.0,  0.0 ],
              [ 0.0,  0. ]]
             )
 
-def test_cicraise3():
+def test_paintraise3():
     mesh = numpy.zeros((2, 2))
     pos = [[-.1, 0.0]]
     try:
-        cic.cic(pos, mesh, mode='raise')
+        cic.paint(pos, mesh, mode='raise')
         raise AssertionError("shall not reach here")
     except ValueError as e:
         pass
 
-def test_cicraise4():
+def test_paintraise4():
     mesh = numpy.zeros((2, 2))
     pos = [[2.1, 0.0]]
     try:
-        cic.cic(pos, mesh, mode='raise')
+        cic.paint(pos, mesh, mode='raise')
         raise AssertionError("shall not reach here")
     except ValueError as e:
         pass
 
-def test_cicignore1():
+def test_paintignore1():
     mesh = numpy.zeros((2, 2))
     pos = [[0.1, 0.0]]
-    cic.cic(pos, mesh, mode='ignore')
+    cic.paint(pos, mesh, mode='ignore')
     assert numpy.allclose(
             mesh, 
             [[ 0.9,  0.0 ],
              [ 0.1,  0. ]]
             )
     mesh[:] = 0
-    cic.cic(pos, mesh, mode='ignore', period=4)
+    cic.paint(pos, mesh, mode='ignore', period=4)
     assert numpy.allclose(
             mesh, 
             [[ 0.9,  0.0 ],
              [ 0.1,  0. ]]
             )
 
-def test_cicignore2():
+def test_paintignore2():
     mesh = numpy.zeros((2, 2))
     pos = [[0.0, 0.0]]
-    cic.cic(pos, mesh, mode='ignore')
+    cic.paint(pos, mesh, mode='ignore')
     assert numpy.allclose(
             mesh, 
             [[ 1.0,  0.0 ],
              [ 0.0,  0. ]]
             )
     mesh[:] = 0
-    cic.cic(pos, mesh, mode='ignore', period=4)
+    cic.paint(pos, mesh, mode='ignore', period=4)
     assert numpy.allclose(
             mesh, 
             [[ 1.0,  0.0 ],
              [ 0.0,  0. ]]
             )
 
-def test_cicignore3():
+def test_paintignore3():
     mesh = numpy.zeros((2, 2))
     pos = [[-.1, 0.0]]
-    cic.cic(pos, mesh, mode='ignore')
+    cic.paint(pos, mesh, mode='ignore')
     assert numpy.allclose(
             mesh, 
             [[ 0.9,  0.0 ],
              [ 0.0,  0. ]]
             )
     mesh[:] = 0
-    cic.cic(pos, mesh, mode='ignore', period=4)
+    cic.paint(pos, mesh, mode='ignore', period=4)
     assert numpy.allclose(
             mesh, 
             [[ 0.9,  0.0 ],
              [ 0.0,  0. ]]
             )
 
-def test_cicignore4():
+def test_paintignore4():
     mesh = numpy.zeros((2, 2))
     pos = [[2.1, 0.0]]
-    cic.cic(pos, mesh, mode='ignore')
+    cic.paint(pos, mesh, mode='ignore')
     assert numpy.allclose(
             mesh, 
             [[ 0.0,  0.0 ],
              [ 0.0,  0. ]]
             )
     mesh[:] = 0
-    cic.cic(pos, mesh, mode='ignore', period=4)
+    cic.paint(pos, mesh, mode='ignore', period=4)
     assert numpy.allclose(
             mesh, 
             [[ 0.0,  0.0 ],
@@ -183,18 +183,49 @@ def test_cicignore4():
             )
 
 
-test_cic1()
-test_cic2()
-test_cic3()
-test_cic4()
-test_cic5()
-test_cic6()
-test_cic5()
-test_cicraise1()
-test_cicraise2()
-test_cicraise3()
-test_cicraise4()
-test_cicignore1()
-test_cicignore2()
-test_cicignore3()
-test_cicignore4()
+test_paint1()
+test_paint2()
+test_paint3()
+test_paint4()
+test_paint5()
+test_paint6()
+test_paint5()
+test_paintraise1()
+test_paintraise2()
+test_paintraise3()
+test_paintraise4()
+test_paintignore1()
+test_paintignore2()
+test_paintignore3()
+test_paintignore4()
+
+def test_readout1():
+    mesh = numpy.zeros((2, 2))
+    pos = [[-.1, 0.0]]
+    mesh = numpy.array([
+        [1., 1.],
+        [1., 1.]])
+    values = cic.readout(mesh, pos, period=2.0)
+    assert numpy.allclose(values, 1.0)
+
+def test_readout2():
+    mesh = numpy.zeros((2, 2))
+    pos = [[-.1, 0.0]]
+    mesh = numpy.array([
+        [1., 1.],
+        [0., 1.]])
+    values = cic.readout(mesh, pos, period=2.0)
+    assert numpy.allclose(values, 0.9)
+
+def test_readout3():
+    mesh = numpy.zeros((2, 2))
+    pos = [[-1.1, 0.0]]
+    mesh = numpy.array([
+        [1., 1.],
+        [1., 1.]])
+    values = cic.readout(mesh, pos, period=4.0, mode='ignore')
+    assert numpy.allclose(values, 0.0)
+
+test_readout1()
+test_readout2()
+test_readout3()
