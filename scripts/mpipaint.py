@@ -4,7 +4,7 @@ import os.path
 d = os.path.join(os.path.dirname(__file__), '..', 'src')
 sys.path.append(d)
 
-from bigfilepy import BigFile
+from bigfile import BigFile
 
 import svr
 import domain
