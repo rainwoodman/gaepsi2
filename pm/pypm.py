@@ -265,7 +265,7 @@ if __name__ == '__main__':
 
     from gaepsi2.cosmology import WMAP7 as cosmology
     from bigfile import BigFile 
-    from matplotlib import pyplot
+#    from matplotlib import pyplot
 
     # this will set the units to
     #
@@ -327,7 +327,7 @@ if __name__ == '__main__':
                 numpy.trapz(1 / ( a2 * E2), g2),
                 )
 
-    dloga = 0.05
+    dloga = 0.2
     std = None
 
     loga0 = numpy.log(a0)
@@ -373,11 +373,11 @@ if __name__ == '__main__':
             print 'Pk', psout
             print 'power spectrum / IC', psout / icps, \
                 (numpy.exp(loga) / numpy.exp(loga0)) ** 2
-            pyplot.plot(wout, psout)
-            pyplot.xscale('log')
-            pyplot.yscale('log')
-            pyplot.draw()
-            pyplot.show()
+            #pyplot.plot(wout, psout)
+            #pyplot.xscale('log')
+            #pyplot.yscale('log')
+            #pyplot.draw()
+            #pyplot.show()
 
         density = layout.gather(density, mode='sum')
         Ntot = MPI.COMM_WORLD.allreduce(len(density), MPI.SUM)
@@ -419,7 +419,7 @@ if __name__ == '__main__':
             dtype='f8'), MPI.SUM) ** 0.5
 
         if MPI.COMM_WORLD.rank == 0:
-            print 'step', step, \
+            print 'step', \
             'a',  numpy.exp(loga), \
             'mean density', mean, 'std', std, \
             'Ntot', Ntot, 'vel std', vel2, 'accel std', accel2, \
