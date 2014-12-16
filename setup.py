@@ -6,7 +6,6 @@ def myext(*args):
     return Extension(*args, include_dirs=["./", numpy.get_include()])
 extensions = [
         myext("gaepsi2.svr", ["src/svr.pyx"]),
-        myext("gaepsi2._domain", ["src/_domain.pyx"]),
         myext("gaepsi2.painter", ["src/painter.pyx"]),
         ]
 

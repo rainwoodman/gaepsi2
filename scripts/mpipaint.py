@@ -1,13 +1,14 @@
 import sys
 import os.path
 
+from pypm import domain
+
 d = os.path.join(os.path.dirname(__file__), '..', 'src')
 sys.path.append(d)
 
 from bigfile import BigFile
 
 import svr
-import domain
 import painter
 import camera
 
