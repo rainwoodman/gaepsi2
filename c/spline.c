@@ -15,7 +15,7 @@ gsph_spline_kernel gsph_spline_query(char * name) {
 }
 
 /* The projected 2D cubic spline */
-static double cubic_spline_2D_proj(double r) {
+static double _cubic_spline_2D_proj(double r) {
     double h2 = r * r;
     double h4 = h2 * h2;
     double h;
@@ -37,3 +37,23 @@ static double cubic_spline_2D_proj(double r) {
     return 0.0;
 }
 
+static double cubic_spline_2D_proj(double r) {
+    static double stable[1025];
+    static double * table = NULL;
+    if(table == NULL) {
+        int i;
+        for(i = 0; i <= 1024; i ++) {
+            r = 1.0 * i / 1024;    
+            stable[i] = _cubic_spline_2D_proj(r);
+        }
+        table = stable;
+    }
+    if(r < 0) return 0;
+    if(r >= 1) return 0;
+    double i = r * 1024;
+    int left = i;
+    int right = left + 1;
+    double u = i - left;
+    double v = right - i;
+    return table[left] * v + table[right] * u;
+}

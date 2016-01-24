@@ -46,48 +46,46 @@ ctypedef fused floatingimage:
     cython.float [:, :, :]
     cython.double [:, :, :]
 
-cdef numpy.ndarray A(obj):
-    return numpy.asarray(obj)
-
 @cython.boundscheck(False)
 @cython.wraparound(False)
 @cython.overflowcheck(False)
 @cython.nonecheck(False)
 cdef void _write(floatingimage * image, int x, int y, double * values):
     cdef int i
+    for i in range(image.shape[0]):
     # this is not thread safe
-    for i in range(image.shape[2]):
-#        if values[i] != values[i]:
-#            abort()
-        image[0][y, x, i] += values[i]
+    # how do I add a #pragma omp atomic here?
+        image[0][i, y, x] += values[i]
 
-def paint(pos, sml, data, image):
-    """ paint on 
-          image shape(height, width, nvalue)
-          data shape(:, nvalue)
-          pos[0] : 0 .. height
-          pos[1] : 0 .. width
-    """
-    return _paint(A(pos), A(sml), A(data), A(image))
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
 @cython.overflowcheck(False)
 @cython.nonecheck(False)
-def _paint(floatingpos pos, 
+def paint(floatingpos pos, 
         floatingsml sml,
         floatingdata data,
-        floatingimage image):
+        floatingimage image,
+        object mask):
     cdef GSPHPainter painter
     cdef numpy.intp_t i
+    cdef int usemask
+    cdef numpy.ndarray[numpy.uint8_t, ndim=1, cast=True] maskbool
     cdef int j
     cdef int size[2]
-    size[0] = image.shape[0]
-    size[1] = image.shape[1]
-    cdef int nvalue = image.shape[2]
-    assert data.shape[1] == image.shape[2]
+    size[0] = image.shape[1]
+    size[1] = image.shape[2]
+    cdef int nvalue = image.shape[0]
+    assert data.shape[0] == image.shape[0]
     cdef gsph_spline_kernel sphkernel
     sphkernel = gsph_spline_query(SPLINE_2D_PROJ_CUBIC)
+
+    if mask is None:
+        usemask = False
+        maskbool = numpy.array([False])
+    else:
+        usemask = True
+        maskbool = mask
 
     # watch out bigger than memoryslice object 
     # hack
@@ -96,17 +94,18 @@ def _paint(floatingpos pos,
     gsph_painter_init(&painter, size, 
         <gsph_painter_write>_write[floatingimage], 
         sphkernel, 
-        <floatingimage *>msl, image.shape[2])
+        <floatingimage *>msl, image.shape[0])
 
     cdef double * mvalue = <double*>malloc(nvalue * sizeof(double))
     cdef double dpos[2]
     cdef double dsml
     for i in range(0, pos.shape[0]):
+        if usemask and not maskbool[i]: continue
         dpos[0] = pos[i, 0]
         dpos[1] = pos[i, 1]
         dsml = sml[i]
         for j in range(nvalue):
-            mvalue[j] = data[i, j]
+            mvalue[j] = data[j, i]
         gsph_painter_rasterize(&painter, dpos, dsml, mvalue)
     free(mvalue)
     free(msl)

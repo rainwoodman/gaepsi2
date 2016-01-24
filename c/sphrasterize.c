@@ -71,13 +71,15 @@ void gsph_painter_rasterize(GSPHPainter * painter,
     } else {
         double save[128 * 128];
         int s = 0;
-        int usesave = 0;
+        int usekernel = 0;
 
         int min[2]; 
         int max[2]; 
         for(k = 0; k < 2; k ++) {
             min[k] = pos[k] - sml;
             max[k] = pos[k] + sml;
+            if (max[k] < 0) return;
+            if (min[k] >= painter->size[k]) return;
             if (min[k] < 0) min[k] = 0;
             if (max[k] < 0) max[k] = 0;
             if (min[k] >= painter->size[k]) min[k] = painter->size[k] - 1;
@@ -99,24 +101,23 @@ void gsph_painter_rasterize(GSPHPainter * painter,
                 }
             }
             }
-            usesave = 1;
+            usekernel = 1;
         } else {
-            bit = (sml * sml);
+            /* particle to big, use a rectangular kernel */
+            bit = (4 * sml * sml);
         }
 
+        bit = 1.0 / bit;
         double sml2 = sml * sml;
         //printf("area %g %g %g %g\n", sml, bit, sml2, bit / sml2);
         s = 0;
         for(y = min[0]; y <= max[0]; y++) {
         for(x = min[1]; x <= max[1]; x++) {
             double w;
-            if(usesave) {
-                w = save[s] / bit;
+            if(usekernel) {
+                w = save[s] * bit;
             } else {
-                double dx = x - pos[1];
-                double dy = y - pos[0];
-                r = sqrt(dx * dx + dy * dy) / sml;
-                w = painter->sphkernel(r) / bit;
+                w = 1.0 * bit;
             }
             s ++;
             if(w) {

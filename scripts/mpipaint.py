@@ -54,6 +54,7 @@ HEADER = world.bcast(HEADER)
 BoxSize = HEADER['BoxSize']
 
 # set up some defaults
+SMLFACTOR = 1.0
 TilePadding = 256
 
 M = [
@@ -80,7 +81,8 @@ SML_BLOCK = "0/SmoothingLength"
 DATA_BLOCK =  ["0/Mass", 
         "0/StarFormationRate", 
         (ieye2Tmass, "0/InternalEnergy", "0/ElectronAbundance", "0/Mass")]
-
+CENTER = [0.5, 0.5]
+VIEW_SIZE = [1.0, 1.0]
 # pull in M
 execfile(config)
 
@@ -92,12 +94,13 @@ FULL_SIZE *= BoxSize
 
 NEAR = 0
 FAR = FULL_SIZE[2]
-EXTENT = (-FULL_SIZE[0] *0.5, FULL_SIZE[0] * 0.5, -FULL_SIZE[1] * 0.5, FULL_SIZE[1] * 0.5)
-CAMERA = (FULL_SIZE[0] * 0.5, FULL_SIZE[1] * 0.5, 0)
-FOCUS = (FULL_SIZE[0] * 0.5, FULL_SIZE[1] * 0.5, FULL_SIZE[2])
+EXTENT = (-FULL_SIZE[0] * 0.5 * VIEW_SIZE[0], FULL_SIZE[0] * 0.5 * VIEW_SIZE[0],
+        -FULL_SIZE[1] * 0.5 * VIEW_SIZE[1], FULL_SIZE[1] * 0.5 * VIEW_SIZE[1])
+CAMERA = (FULL_SIZE[0] * CENTER[0], FULL_SIZE[1] * CENTER[1], 0)
+FOCUS = (FULL_SIZE[0] * CENTER[0], FULL_SIZE[1] * CENTER[1], FULL_SIZE[2])
 UP = (0, 1, 0)
 
-PIXEL_HEIGHT = int(FULL_SIZE[0] / FULL_SIZE[1] * PIXEL_WIDTH)
+PIXEL_HEIGHT = int(FULL_SIZE[0] * VIEW_SIZE[0] / (FULL_SIZE[1] *VIEW_SIZE[1]) * PIXEL_WIDTH)
 
 # do it again to make sure we do not override other confs
 execfile(config)
@@ -145,15 +148,16 @@ def process_chunk(image,
         data = data[mask]
 
     pos += 1.0
-
+    print 'boxsize', BoxSize
     # to device coordinate:
     pos[:, 0] *= PIXEL_HEIGHT / 2.
     pos[:, 1] *= PIXEL_WIDTH / 2.
 
-    sml[:] *= PIXEL_WIDTH / FULL_SIZE[1]
+    sml[:] *= PIXEL_WIDTH / (FULL_SIZE[1] * VIEW_SIZE[1])
+    assert len(sml) == len(pos)
     if d2d is not None:
 
-        layout = d2d.decompose(pos[:, :2], bleeding=sml)
+        layout = d2d.decompose(pos, smoothing=sml)
         pos = layout.exchange(pos)
         sml = layout.exchange(sml)
         data = layout.exchange(data)
@@ -162,7 +166,9 @@ def process_chunk(image,
         pos[:, 0] -= d2d.mystart[0]
         pos[:, 1] -= d2d.mystart[1]
 
-    painter.paint(pos, sml, data, image)
+    sml[sml > 100] = 100
+    print sml.max()
+    image[...] += painter.paint(pos, sml, data, image.shape[1:], np=0)
 
     if d2d is not None:
         # get some stats
@@ -192,7 +198,7 @@ def process_chunk(image,
 def main(comm):
     posblock = bigfile.open(POS_BLOCK)
     smlblock = bigfile.open(SML_BLOCK)
-
+    
     NumPartTotal = smlblock.size
     
     NX = int(comm.size ** 0.5)
@@ -215,7 +221,7 @@ def main(comm):
         d2d = None
         mysize = (PIXEL_HEIGHT, PIXEL_WIDTH)
         
-    image = numpy.zeros(mysize, dtype=('f4', (len(DATA_BLOCK), )))
+    image = numpy.zeros((len(DATA_BLOCK),) + mysize, dtype=('f4'))
 
     datablock = [
         tuple([item[0]] 
@@ -233,7 +239,7 @@ def main(comm):
         end += cstart
 
         pos = posblock[start:end]
-        sml = numpy.float32(smlblock[start:end])
+        sml = numpy.float32(smlblock[start:end]) * SMLFACTOR
 
         data = [
             item[0] (*[numpy.float32(b[start:end]) for b in item[1:]])
@@ -255,13 +261,13 @@ def main(comm):
         pass
     if not SMALL_IMAGE:
         if image.size > 0:
-            numpy.save(os.path.join(output, 'imagetitle-%05d-%05d.npy' % myoffset), image)
+            numpy.save(os.path.join(output, 'imagetile-%05d-%05d.npy' % myoffset), image)
     else:
         gimage = image.copy()
         image[...] = 0
         comm.Reduce(gimage, image, MPI.SUM)
         if comm.rank == 0:
-            numpy.save(os.path.join(output, 'imagetitle.npy'), image)
+            numpy.save(os.path.join(output, 'imagetile.npy'), image)
 
 
 main(world)
