@@ -4,17 +4,18 @@
 #include "gaepsi.h"
 #include <stdio.h>
 
-static double cubic_spline_2D_proj(double r);
+static double gaussian_kernel(double rr);
 
-gsph_spline_kernel gsph_spline_query(char * name) {
-    if(!strcmp(name, SPLINE_2D_PROJ_CUBIC)) return cubic_spline_2D_proj;
-    else {
-        fprintf(stderr, "UNKNOWN SPLINE TYPE\n");
-        abort();
-    }
+GSPHKernel gsph_spline_query(char * name) {
+    return gaussian_kernel;
 }
 
 /* The projected 2D cubic spline */
+static double 
+_gaussian_kernel(double r) 
+{
+    return exp(- 0.5 * (r * r * 4) );
+}
 static double _cubic_spline_2D_proj(double r) {
     double h2 = r * r;
     double h4 = h2 * h2;
@@ -28,22 +29,22 @@ static double _cubic_spline_2D_proj(double r) {
     if (h2 < 1.0)  {
         h = sqrt(h2);
         h3 = h2 * h;
-       //# -1/9. * 7/ pi * (1-x) **4 + 100 / 7. / pi * (1-x) **3 - 1.5 / pi * (1-x) ** 2 + 6 / 17. / 5 / pi* (1-x)
+        //# -1/9. * 7/ pi * (1-x) **4 + 100 / 7. / pi * (1-x) **3 - 1.5 / pi * (1-x) ** 2 + 6 / 17. / 5 / pi* (1-x)
         return fac * (-0.2475743559207261 * h4 - 3.556986664656963 * h3 
-            + 11.67894130021956 * h2 
-            - 11.71909411592771* h 
-            + 3.84471383628584);
+                + 11.67894130021956 * h2 
+                - 11.71909411592771* h 
+                + 3.84471383628584);
     }
     return 0.0;
 }
-
-static double cubic_spline_2D_proj(double r) {
+static double gaussian_kernel(double r) {
     static double stable[1025];
     static double * table = NULL;
     if(table == NULL) {
         int i;
         for(i = 0; i <= 1024; i ++) {
-            r = 1.0 * i / 1024;    
+            double r = 1.0 * i / 1024;    
+//            stable[i] = _gaussian_kernel(r);
             stable[i] = _cubic_spline_2D_proj(r);
         }
         table = stable;
@@ -54,6 +55,6 @@ static double cubic_spline_2D_proj(double r) {
     int left = i;
     int right = left + 1;
     double u = i - left;
-    double v = right - i;
+    double v = 1 - u;
     return table[left] * v + table[right] * u;
 }

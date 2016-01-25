@@ -3,55 +3,75 @@
 #include <string.h>
 #include "gaepsi.h"
 
-void gsph_painter_init(GSPHPainter * painter, int size[2], 
-        gsph_painter_write write, 
-        gsph_spline_kernel sphkernel, 
-        void * data,
-        int nvalue) {
-    painter->size[0] = size[0];
-    painter->size[1] = size[1];
-    painter->write = write;
-    painter->data = data;
-    painter->sphkernel = sphkernel;
-    painter->nvalue = nvalue;
+inline void gsph_image_write_single(GSPHImage * img, int x, int y, double * value) {
+    int c;
+    char * ptr = img->data;
+    ptr += x * img->strides[0] + y * img->strides[1];
+           
+    for(c = 0; c < img->size[2]; c++, ptr += img->strides[2]) {
+#pragma omp atomic
+        *((float*) ptr) += value[c];
+    }
 }
 
-void gsph_image_init(GSPHImage * image, int size[2], char * dtype, 
-        ptrdiff_t * strides, void * wdata, void * vdata) {
-    if(dtype[strlen(dtype) - 1] == '8') {
-        image->usedouble = 1;
+inline void gsph_image_write_double(GSPHImage * img, int x, int y, double * value) {
+    int c;
+    char * ptr = img->data;
+    ptr += x * img->strides[0] + y * img->strides[1];
+           
+    for(c = 0; c < img->size[2]; c++, ptr += img->strides[2]) {
+#pragma omp atomic
+        *((double*) ptr) += value[c];
+    }
+}
+
+inline void gsph_image_write(GSPHImage * img, int x, int y, double * value) 
+{
+    if (img->itemsize == 8) {
+        gsph_image_write_double(img, x, y, value);
     } else {
-        image->usedouble = 0;
+        gsph_image_write_single(img, x, y, value);
+    }
+}
+
+void 
+gsph_image_init(GSPHImage * image, 
+        char * dtype, 
+        int size[3], 
+        ptrdiff_t * strides, 
+        void * data) 
+{
+    if(dtype[strlen(dtype) - 1] == '8') {
+        image->itemsize = 8;
+    } else {
+        image->itemsize = 4;
     }
     image->size[0] = size[0];
     image->size[1] = size[1];
+    image->size[2] = size[2];
     if(strides) {
         image->strides[0] = strides[0];
         image->strides[1] = strides[1];
+        image->strides[2] = strides[2];
     } else {
-        /* assuming continous strides */
-        image->strides[1] = image->usedouble?sizeof(double):sizeof(float);
+        /* assuming continuous strides */
+        image->strides[2] = image->itemsize;
+        image->strides[1] = image->strides[2] * size[2];
         image->strides[0] = image->strides[1] * size[1];
     }
-    image->wdata = wdata;
-    image->vdata = vdata;
+    image->data = data;
 }
 
-void gsph_image_write(GSPHImage * image, int x, int y, double * mvalue) {
-    ptrdiff_t p = y * image->strides[0] + x * image->strides[1];
-    float * fpw = (float*) &image->wdata[p];
-    float * fpv = (float*) &image->vdata[p];
-#pragma omp atomic
-    *fpw += mvalue[0];
-#pragma omp atomic
-    *fpv += mvalue[1];
-}
+void 
+gsph_rasterize(GSPHImage * image, GSPHKernel sphkernel,
+        double pos[2], double sml, double * mvalue) 
+{
+    /* sml here is half of Gadget's cubic spline sml (gadget uses support). */
+    int * size = image->size;
+    int nc = image->size[2];
 
-void gsph_painter_rasterize(GSPHPainter * painter, 
-        double pos[2], double sml, double * mvalue) {
-
-    if (painter->size[0] == 0) return;
-    if (painter->size[1] == 0) return;
+    if (size[0] == 0) return;
+    if (size[1] == 0) return;
 
     double bit = 0;
     int x, y;
@@ -65,9 +85,9 @@ void gsph_painter_rasterize(GSPHPainter * painter,
         y = pos[0];
         if (x < 0) return;
         if (y < 0) return;
-        if (x >= painter->size[1]) return;
-        if (y >= painter->size[0]) return;
-        painter->write(painter->data, x, y, mvalue);
+        if (x >= size[1]) return;
+        if (y >= size[0]) return;
+        gsph_image_write(image, x, y, mvalue);
     } else {
         double save[128 * 128];
         int s = 0;
@@ -79,20 +99,19 @@ void gsph_painter_rasterize(GSPHPainter * painter,
             min[k] = pos[k] - sml;
             max[k] = pos[k] + sml;
             if (max[k] < 0) return;
-            if (min[k] >= painter->size[k]) return;
+            if (min[k] >= size[k]) return;
             if (min[k] < 0) min[k] = 0;
             if (max[k] < 0) max[k] = 0;
-            if (min[k] >= painter->size[k]) min[k] = painter->size[k] - 1;
-            if (max[k] >= painter->size[k]) max[k] = painter->size[k] - 1;
+            if (min[k] >= size[k]) min[k] = size[k] - 1;
+            if (max[k] >= size[k]) max[k] = size[k] - 1;
         }
-
-        if(sml < 32) {
+        if(sml < 60) {
             for(y = pos[0] - sml; y <= pos[0] + sml; y++) {
             for(x = pos[1] - sml; x <= pos[1] + sml; x++) {
                 double dx = x - pos[1];
                 double dy = y - pos[0];
-                r = sqrt(dx * dx + dy * dy) / sml;
-                r = painter->sphkernel(r);
+                double r = sqrt(dx * dx + dy * dy) / (sml );
+                r = sphkernel(r);
                 bit += r;
                 if(x >= min[1] && x <= max[1] 
                         && y >= min[0] && y <= max[0]) {
@@ -121,12 +140,12 @@ void gsph_painter_rasterize(GSPHPainter * painter,
             }
             s ++;
             if(w) {
-                double tmp[painter->nvalue];
+                double tmp[nc];
                 int i;
-                for(i = 0; i < painter->nvalue; i ++) {
+                for(i = 0; i < nc; i ++) {
                     tmp[i] = mvalue[i] * w;
                 }
-                painter->write(painter->data, x, y, tmp);
+                gsph_image_write(image, x, y, tmp);
             }
         }
         }

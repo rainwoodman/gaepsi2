@@ -1,4 +1,4 @@
-OBJS=quadcurve.o spline.o svremap.o transform.o sphrasterize.o
+OBJS=quadcurve.o kernel.o svremap.o transform.o sphrasterize.o
 
 libgaepsi.a: $(OBJS)
 	ar r $@ $^

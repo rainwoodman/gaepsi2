@@ -28,41 +28,30 @@ double svremap_apply(SVRemap * r, double x[3], double y[3], int I[3]);
 
 
 /* spline.c */
-#define SPLINE_2D_PROJ_CUBIC "2dcubicproj"
-typedef double (*gsph_spline_kernel)(double r);
-gsph_spline_kernel gsph_spline_query(char * name);
+typedef double (*GSPHKernel)(double rr);
+GSPHKernel * gsph_kernel_query(char * name);
 
 /* sphrasterize.c */
 typedef struct {
-    int size[2]; 
-    ptrdiff_t strides[2];
-    char * wdata;
-    char * vdata;
-    int usedouble;
+    /* multi channel image of float or double */
+    int itemsize;
+    /* x, y, c */
+    int size[3]; 
+    ptrdiff_t strides[3];
+    void * data;
 } GSPHImage;
 
-typedef void (*gsph_painter_write)(void * data, int x, int y, double * values);
+void
+gsph_image_init(GSPHImage * image, 
+        char * dtype, 
+        int size[3], 
+        ptrdiff_t * strides, 
+        void * data);
 
-typedef struct {
-    void * data;
-    int size[2];
-    gsph_painter_write write;
-    gsph_spline_kernel sphkernel;
-    int nvalue;
-} GSPHPainter;
-
-void gsph_image_init(GSPHImage * image, int size[2], char * dtype, 
-        ptrdiff_t * strides, void * wdata, void * vdata);
-void gsph_image_write(GSPHImage * image, int x, int y, double * mvalue);
-
-void gsph_painter_init(GSPHPainter * painter, int size[2], 
-        gsph_painter_write write, 
-        gsph_spline_kernel sphkernel, 
-        void * data, 
-        int nvalue);
-
-void gsph_painter_rasterize(GSPHPainter * painter,
-        double pos[2], double sml, double * mvalue);
+void 
+gsph_rasterize(GSPHImage * image, GSPHKernel sphkernel,
+        double pos[2], double sml, 
+        double * mvalue) ;
 
 /* quadcurve.c */
 typedef int64_t quadindex_t;
