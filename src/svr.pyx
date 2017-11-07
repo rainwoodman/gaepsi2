@@ -35,14 +35,14 @@ def wrap(pos, BoxSize, offset=None, output=None):
     norm = numpy.empty(pos.shape[-1])
     norm[:] = BoxSize
     norm[:] = 1.0 / norm[:]
-    off = numpy.empty(pos.shape[-1])
-    off[:] = offset
     if output is None:
         output = numpy.empty_like(pos)
     if offset and offset != 0.0 :
-        output = numpy.substract(pos, offset, output=output)
-    numpy.multiply(pos, norm, output=output)
-    return numpy.remainder(output, 1.0, output=output)
+        off = numpy.empty(pos.shape[-1])
+        off[:] = offset
+        pos = numpy.substract(pos, off, output)
+    numpy.multiply(pos, norm, output)
+    return numpy.remainder(output, 1.0, output)
 
 def remap_query_size(M):
     cdef SVRemap r 

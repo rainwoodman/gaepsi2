@@ -1,22 +1,18 @@
 import sys
 import os.path
 
-from pypm import domain
-
-d = os.path.join(os.path.dirname(__file__), '..', 'src')
-sys.path.append(d)
+from pmesh import domain
 
 from bigfile import BigFile
 
-import svr
-import painter
-import camera
+from gaepsi2 import svr
+from gaepsi2 import painter
+from gaepsi2 import camera
 
 import numpy
 import os
-from color import CoolWarm, N, NL
+from gaepsi2.color import CoolWarm, N, NL
 
-from sys import argv
 from mpi4py import MPI
 
 class UniqueBarrier(object):
@@ -35,12 +31,16 @@ class UniqueBarrier(object):
         self.comm.Barrier()
         if self.comm.rank == 0:
             print(tag)
+#bigfile = BigFile(argv[1])
+from argparse import ArgumentParser
 
-config = argv[1]
-input = argv[2]
-output = argv[3]
+ap = ArgumentParser()
+ap.add_argument("config")
+ap.add_argument("input")
+ap.add_argument("output")
 
-bigfile = BigFile(input)
+ns = ap.parse_args()
+bigfile = BigFile(ns.input)
 
 world = MPI.COMM_WORLD
 
@@ -83,7 +83,7 @@ DATA_BLOCK =  ["0/Mass",
 CENTER = [0.5, 0.5]
 VIEW_SIZE = [1.0, 1.0]
 # pull in M
-execfile(config)
+execfile(ns.config)
 
 if M is not None:
     FULL_SIZE = svr.remap_query_size(M)
@@ -95,14 +95,14 @@ NEAR = 0
 FAR = FULL_SIZE[2]
 EXTENT = (-FULL_SIZE[0] * 0.5 * VIEW_SIZE[0], FULL_SIZE[0] * 0.5 * VIEW_SIZE[0],
         -FULL_SIZE[1] * 0.5 * VIEW_SIZE[1], FULL_SIZE[1] * 0.5 * VIEW_SIZE[1])
-CAMERA = (FULL_SIZE[0] * CENTER[0], FULL_SIZE[1] * CENTER[1], 0)
-FOCUS = (FULL_SIZE[0] * CENTER[0], FULL_SIZE[1] * CENTER[1], FULL_SIZE[2])
+CAMERA = (FULL_SIZE[0] * CENTER[0], FULL_SIZE[1] * CENTER[1], FULL_SIZE[2])
+FOCUS = (FULL_SIZE[0] * CENTER[0], FULL_SIZE[1] * CENTER[1], 0)
 UP = (0, 1, 0)
 
 PIXEL_HEIGHT = int(FULL_SIZE[0] * VIEW_SIZE[0] / (FULL_SIZE[1] *VIEW_SIZE[1]) * PIXEL_WIDTH)
 
 # do it again to make sure we do not override other confs
-execfile(config)
+execfile(ns.config)
 def buildgrid(PX, NX):
     ntile = PX // TilePadding + (PX % TilePadding != 0)
     gridx = numpy.arange(NX + 1) * ntile // NX * TilePadding
@@ -167,9 +167,10 @@ def process_chunk(image,
         pos[:, 1] -= d2d.mystart[1]
 
     sml[sml > 100] = 100
+
     if d2d is None or d2d.comm.rank == 0:
         print(sml.max())
-    image[...] += painter.paint(pos, sml, data, image.shape[1:], np=0)
+    image[...] += painter.paint(pos, sml, data.T, image.shape[1:], np=0)
 
     if d2d is not None:
         # get some stats
@@ -257,18 +258,18 @@ def main(comm):
             print('chunk', i, '/', NumPartTotal, cstart, cend)
         
     try:
-        os.makedirs(output)
+        os.makedirs(ns.output)
     except OSError:
         pass
     if not SMALL_IMAGE:
         if image.size > 0:
-            numpy.save(os.path.join(output, 'imagetile-%05d-%05d.npy' % myoffset), image)
+            numpy.save(os.path.join(ns.output, 'imagetile-%05d-%05d.npy' % myoffset), image)
     else:
         gimage = image.copy()
         image[...] = 0
         comm.Reduce(gimage, image, MPI.SUM)
         if comm.rank == 0:
-            numpy.save(os.path.join(output, 'imagetile.npy'), image)
+            numpy.save(os.path.join(ns.output, 'imagetile.npy'), image)
 
 
 main(world)
