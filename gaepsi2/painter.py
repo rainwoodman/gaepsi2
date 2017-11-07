@@ -13,6 +13,9 @@ def paint(pos, sml, data, shape, mask=None, np=0):
 
         returns (nchan, shape[0], shape[1])
     """
+    if len(numpy.shape(data)) == 1:
+        data = [data]
+
     with sharedmem.MapReduce(np=np) as pool:
         if np > 0: nbuf = np
         else: nbuf = 1

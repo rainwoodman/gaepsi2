@@ -83,7 +83,7 @@ DATA_BLOCK =  ["0/Mass",
 CENTER = [0.5, 0.5]
 VIEW_SIZE = [1.0, 1.0]
 # pull in M
-execfile(ns.config)
+exec(open(ns.config).read())
 
 if M is not None:
     FULL_SIZE = svr.remap_query_size(M)
@@ -102,7 +102,7 @@ UP = (0, 1, 0)
 PIXEL_HEIGHT = int(FULL_SIZE[0] * VIEW_SIZE[0] / (FULL_SIZE[1] *VIEW_SIZE[1]) * PIXEL_WIDTH)
 
 # do it again to make sure we do not override other confs
-execfile(ns.config)
+exec(open(ns.config).read())
 def buildgrid(PX, NX):
     ntile = PX // TilePadding + (PX % TilePadding != 0)
     gridx = numpy.arange(NX + 1) * ntile // NX * TilePadding
@@ -133,7 +133,7 @@ def process_chunk(image,
     pers = camera.ortho(near=NEAR, far=FAR, extent=EXTENT)
     matrix = numpy.dot(pers, model)
 
-    pos = camera.apply(matrix, pos)
+    pos = camera.apply(matrix, pos, np=0)
 
     # apply near field far field cut
     mask = pos[:, 2] >= -1

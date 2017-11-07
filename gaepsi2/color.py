@@ -73,7 +73,7 @@ def setup():
     global CoolWarmR
     global Hot
     global HotR
-    from StringIO import StringIO
+    from io import StringIO
     CoolWarm = Colormap(numpy.loadtxt(StringIO(coolwarm_data)))
     CoolWarmR = Colormap(numpy.loadtxt(StringIO(coolwarm_data))[::-1])
     Hot = Colormap(numpy.loadtxt(StringIO(hot_data)))

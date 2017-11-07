@@ -67,7 +67,7 @@ def remap(pos, M, output=None):
     else:
         assert output.dtype == numpy.dtype('f8')
 
-    assert output.shape[-1] == 3
+    assert output.shape[output.ndim - 1] == 3
 
     output[...] = pos
 

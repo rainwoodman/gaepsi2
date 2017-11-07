@@ -42,6 +42,43 @@ def ortho(near, far, extent):
     ortho.scale = numpy.array([ortho[0, 0], ortho[1, 1]])
     return ortho
 
+def fov2extent(fov, aspect, D):
+    l = - numpy.tan(fov * 0.5) * aspect * D
+    r = - l
+    b = - numpy.tan(fov * 0.5) * D
+    t = - b
+    return (l, r, b, t)
+
+def extent2fov(extent, D):
+    l, r, b, t = extent
+    aspect = (l - r) /(b - t)
+    fov = numpy.arctan2((t - b), D) * 2
+    return fov, aspect
+
+def persp(near, far, fov, aspect):
+    """ set up the perspect by fov, and aspect. fov in radians."""
+    
+    # distance cancels out
+    l, r, b, t = fov2extent(fov, aspect, 1)
+    
+    persp = numpy.zeros((4,4))
+ 
+    persp[0, 0] = 2. / (r - l)
+    persp[1, 1] = 2. / (t - b)
+    persp[2, 2] = - (1. *(far + near)) / (far - near)
+    persp[2, 3] = - (2. * far * near) / (far - near)
+    persp[0, 2] = (r + l) / (r - l)
+    persp[1, 2] = (t + b) / (t - b)
+    persp[3, 2] = -1
+    persp[3, 3] = 0
+
+    persp = persp.view(type=perspectivematrix)
+    persp.near = near
+    persp.far = far
+    persp.scale = numpy.array([persp[0, 0], persp[1, 1]])
+
+    return persp
+
 def lookat(pos, target, up):
     """ the full transformation matrix is 
         modelviewmatrix dot lookat
@@ -73,9 +110,10 @@ def apply(matrix, pos, np=None):
     """ 
         apply the transform matrix to pos
         matrix = projection dot modelview 
-        returns new pos in device coordinate
+        returns new pos in clip coordinate:
 
         (-1, 1) x (-1, 1) x (-1, 1)
+
     """
     shmout = sharedmem.empty_like(pos)
     chunksize = 1024 * 32
@@ -87,31 +125,35 @@ def apply(matrix, pos, np=None):
         tmp[..., 3] = 1.0
         tmp[..., :3] = tmppos
         tmp = numpy.dot(tmp, matrix.T)
-        tmpout[..., :] = tmp[..., :3]
+        tmpout[..., :] = tmp[..., :3] / tmp[..., 3][..., None]
 
     with sharedmem.MapReduce(np=np) as pool:
         pool.map(work, range(0, len(pos), chunksize))
 
     return shmout
 
-def todevice(pos2d, extent, np=None):
+def clip(xc):
+    return ((xc >= -1) & (xc <= 1)).all(axis=-1)
+
+def todevice(xc, extent, np=None):
     """
         convert to device coordinate
     """
     l, r, b, t = extent
 
     chunksize = 1024 * 32
-    out = sharedmem.empty_like(pos2d)
+    out = sharedmem.empty((len(xc), 2))
     def work(i):
-        tmp = (pos2d[i:i+chunksize] + 1.0)
+        tmp = (xc[i:i+chunksize] + 1.0)
         tmp *= 0.5
         tmp[..., 0] *= (r - l)
         tmp[..., 0] += l
         tmp[..., 1] *= (t - b)
         tmp[..., 1] += b
-        out[i:i+chunksize] = tmp
+        out[i:i+chunksize] = tmp[:, :2]
     with sharedmem.MapReduce(np=np) as pool:
-        pool.map(work, range(0, len(pos2d), chunksize))
+        pool.map(work, range(0, len(xc), chunksize))
+
     return out
 
 def test():
