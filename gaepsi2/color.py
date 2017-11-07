@@ -57,6 +57,11 @@ class Colormap(object):
         self.map = map
         assert map.shape[1] == 3
         self.x = numpy.linspace(0, 1.0, len(map), endpoint=True)
+
+    @classmethod
+    def from_mpl(self, mpl):
+        return Colormap(mpl(numpy.linspace(0, 1.0, 8192, endpoint=True))[:, :3])
+
     def __call__(self, data, brightness=1.0):
         value = numpy.empty(list(data.shape) + [4], 'u1')
         data2 = data.copy()
