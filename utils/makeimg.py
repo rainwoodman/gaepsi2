@@ -1,10 +1,10 @@
-import bigfilepy
+import bigfile
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.colors import LogNorm, Normalize
 from matplotlib import cm
 
-f = bigfilepy.BigFile('image2')
+f = bigfile.BigFile('image2')
 h = f.open('header')
 tp = h.attrs['TilePadding']
 w = f.open('W')
@@ -16,7 +16,7 @@ imgw = tiles.transpose((0,2,1,3)).copy().reshape(ntile[0] * tp, ntile[1] * tp)
 tiles = v.read(0, -1).reshape(ntile[0], ntile[1], tp, tp)
 imgv = tiles.transpose((0,2,1,3)).copy().reshape(ntile[0] * tp, ntile[1] * tp)
 
-print imgw.sum(dtype='f8')
+print(imgw.sum(dtype='f8'))
 
 imgv /= imgw
 
@@ -41,7 +41,7 @@ color[..., :3] *= brightness[..., None]
 color = color.reshape(-1, 4)
 
 bad = (color[..., :3] > 1.0).any(axis=-1)
-print bad.sum(), color.shape
+print(bad.sum(), color.shape)
 color[..., :3][bad] /= color[..., :3][bad].max(axis=-1)[..., None]
 
 color = color.reshape(imgw.shape[0], imgw.shape[1], 4)

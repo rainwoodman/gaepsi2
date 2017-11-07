@@ -34,8 +34,7 @@ class UniqueBarrier(object):
                     (self.comm.rank, tag, newtag))
         self.comm.Barrier()
         if self.comm.rank == 0:
-            print tag
-#bigfile = BigFile(argv[1])
+            print(tag)
 
 config = argv[1]
 input = argv[2]
@@ -46,7 +45,7 @@ bigfile = BigFile(input)
 world = MPI.COMM_WORLD
 
 if world.rank == 0:
-    attrs = bigfile.open("header").attrs
+    attrs = bigfile.open("Header").attrs
     HEADER = dict([(i, attrs[i]) for i in attrs])
 else:
     HEADER = None
@@ -148,7 +147,8 @@ def process_chunk(image,
         data = data[mask]
 
     pos += 1.0
-    print 'boxsize', BoxSize
+    if d2d is None or d2d.comm.rank == 0:
+        print('boxsize', BoxSize)
     # to device coordinate:
     pos[:, 0] *= PIXEL_HEIGHT / 2.
     pos[:, 1] *= PIXEL_WIDTH / 2.
@@ -167,7 +167,8 @@ def process_chunk(image,
         pos[:, 1] -= d2d.mystart[1]
 
     sml[sml > 100] = 100
-    print sml.max()
+    if d2d is None or d2d.comm.rank == 0:
+        print(sml.max())
     image[...] += painter.paint(pos, sml, data, image.shape[1:], np=0)
 
     if d2d is not None:
@@ -187,13 +188,13 @@ def process_chunk(image,
     
         comm = d2d.comm
         with domain.Rotator(comm):
-            print comm.rank, '----'
-            print 'rank', 'pos', comm.rank, pos.shape, image.shape, data.shape
-            print posstats
-            print datastats
-            print imgstats
+            print(comm.rank, '----')
+            print('rank', 'pos', comm.rank, pos.shape, image.shape, data.shape)
+            print(posstats)
+            print(datastats)
+            print(imgstats)
     else:
-        print 'd2d is None'
+        print('d2d is None')
 
 def main(comm):
     posblock = bigfile.open(POS_BLOCK)
@@ -253,7 +254,7 @@ def main(comm):
 
         comm.Barrier()
         if comm.rank == 0:
-            print 'chunk', i, '/', NumPartTotal, cstart, cend
+            print('chunk', i, '/', NumPartTotal, cstart, cend)
         
     try:
         os.makedirs(output)

@@ -120,8 +120,8 @@ def test():
     proj = ortho(0, 20, (-10, 10, -10, 10))
     mcam = lookat((0, 0, -10), (0, 0, 0), (0, 1, 0))
     p2d = apply(proj.dot(mcam), pos)
-    print p2d.max(axis=0)
-    print p2d.min(axis=0)
+    #print p2d.max(axis=0)
+    #print p2d.min(axis=0)
 
 if __name__ == '__main__':
     test()
