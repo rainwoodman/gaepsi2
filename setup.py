@@ -5,12 +5,12 @@ import numpy
 def myext(*args):
     return Extension(*args, include_dirs=["./", numpy.get_include()],
             extra_compile_args=['-O3'],
-            extra_link_args=['-O3'],
+            extra_link_args=['-O3']
             )
 
 extensions = [
         myext("gaepsi2.svr", ["gaepsi2/svr.pyx"]),
-        myext("gaepsi2._painter", ["gaepsi2/_painter.pyx"]),
+        myext("gaepsi2._painter", ["gaepsi2/_painter.pyx"])
         ]
 
 
