@@ -18,8 +18,8 @@ setup(
     author="Yu Feng",
     description="gaepsi2",
     install_requires=['cython', 'numpy'],
-    packages= ['gaepsi2'],
-    requires=['numpy'],
+    packages= ['gaepsi2', 'gaepsi2.tests'],
+    requires=['numpy',],
     ext_modules = cythonize(extensions)
 )
 

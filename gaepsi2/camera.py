@@ -1,7 +1,7 @@
 """
    Camera support in Gaepsi
 
-   a camera is represented by a 4x4 transformation matrix like OpenGL.
+   A camera is represented by a 4x4 transformation matrix like OpenGL.
 
    If it is done correctly, we use
    
@@ -15,17 +15,68 @@
    apply: apply the transformation to a 3 d position vector,
 
    the devide coordinate is [-1, 1]. 
+
+   data_to_device transforms pos and sml together.
+
 """
+
 import numpy
 import sharedmem
-class perspectivematrix(numpy.ndarray):
+
+class projectionmatrix(numpy.ndarray):
     pass
 
 class modelviewmatrix(numpy.ndarray):
     pass
 
+class cameramatrix(numpy.ndarray):
+    pass
+
+def matrix(projection, modelview):
+    """ Create a camera matrix.
+    
+        Parameters
+        ----------
+        projection: projectionmatrix
+           from ortho or persp
+
+        modelview : modelviewmatrix
+           from lookat
+
+        Returns
+        -------
+        cameramatrix
+    """
+    assert isinstance(projection, projectionmatrix)
+    assert isinstance(modelview, modelviewmatrix)
+
+    matrix = projection.dot(modelview).view(type=cameramatrix)
+    matrix.near = projection.near
+    matrix.far = projection.far
+    matrix.up = modelview.up
+    matrix.side = modelview.side
+
+    return matrix
+
 def ortho(near, far, extent):
-    """ set up the zoom by extent=(left, right, top, bottom) """
+    """ An orthogonal camera projection.
+        
+        Parameters
+        ----------
+        extent : tuple of 4
+            left, right, top, bottom in data coordinate
+
+        near : float
+            location of the near field
+
+        far : float
+            location of the far field
+
+        Returns
+        -------
+        A projectionmatrix.
+
+    """
     l, r, b, t = extent
     ortho = numpy.zeros((4,4))
     ortho[0, 0] = 2.0 / (r - l)
@@ -35,7 +86,7 @@ def ortho(near, far, extent):
     ortho[0, 3] = - (1. * r + l) / (r - l)
     ortho[1, 3] = - (1. * t + b) / (t - b)
     ortho[2, 3] = - (1. * far + near) / (far - near)
-    ortho = ortho.view(type=perspectivematrix)
+    ortho = ortho.view(type=projectionmatrix)
     ortho.extent = extent
     ortho.near = near
     ortho.far = far
@@ -43,6 +94,7 @@ def ortho(near, far, extent):
     return ortho
 
 def fov2extent(fov, aspect, D):
+    """ Convert FOV parameters to extent """
     l = - numpy.tan(fov * 0.5) * aspect * D
     r = - l
     b = - numpy.tan(fov * 0.5) * D
@@ -50,13 +102,36 @@ def fov2extent(fov, aspect, D):
     return (l, r, b, t)
 
 def extent2fov(extent, D):
+    """ Convert extent to FOV parameters """
     l, r, b, t = extent
     aspect = (l - r) /(b - t)
     fov = numpy.arctan2((t - b), D) * 2
     return fov, aspect
 
 def persp(near, far, fov, aspect):
-    """ set up the perspect by fov, and aspect. fov in radians."""
+    """ An perspective camera projection.
+        
+        Parameters
+        ----------
+        near : float
+            location of the near field
+
+        far : float
+            location of the far field
+
+        fov : float
+            Field of View angle in radians.
+
+        aspect : float
+            aspect ratio. It shall be the same as
+            the device shape[0] / shape[1] for squared pixels.
+
+        Returns
+        -------
+        A projectionmatrix.
+
+        perspective dot modelview
+    """
     
     # distance cancels out
     l, r, b, t = fov2extent(fov, aspect, 1)
@@ -72,7 +147,7 @@ def persp(near, far, fov, aspect):
     persp[3, 2] = -1
     persp[3, 3] = 0
 
-    persp = persp.view(type=perspectivematrix)
+    persp = persp.view(type=projectionmatrix)
     persp.near = near
     persp.far = far
     persp.scale = numpy.array([persp[0, 0], persp[1, 1]])
@@ -80,8 +155,30 @@ def persp(near, far, fov, aspect):
     return persp
 
 def lookat(pos, target, up):
-    """ the full transformation matrix is 
-        modelviewmatrix dot lookat
+    """ Set up a camera position matrix (modelview)
+
+        Parameters
+        ----------
+        pos : 3-tuple
+           Position of the camera
+
+        target : 3-tuple
+           Focal point of the camera
+
+        up : 3-tuple
+           Up direction of the camera
+
+        Returns
+        -------
+        modelview matrix. The up and side vector are
+        stored as attributes.
+
+        Notes
+        -----
+        The full camera transformation is 
+
+        m = dot(projection, modelview)
+
     """
     pos = numpy.asarray(pos)
     target = numpy.asarray(target)
@@ -110,13 +207,26 @@ def lookat(pos, target, up):
 
 def apply(matrix, pos, np=None):
     """ 
-        apply the transform matrix to pos
-        matrix = projection dot modelview 
-        returns new pos in clip coordinate:
+        apply a camera matrix to data coordinates
 
-        (-1, 1) x (-1, 1) x (-1, 1)
+        Parameters
+        ----------
+        matrix : cameramatrix
+           created by :func:`matrix`
+
+        pos : array_like
+           data cooridnates
+
+        Returns
+        -------
+        clip_pos : array_like
+           The position in the clip coordinate.
+           The fustrum of the camera is in
+           (-1, 1) x (-1, 1) x (-1, 1)
 
     """
+    assert isinstance(matrix, cameramatrix)
+
     shmout = sharedmem.empty_like(pos)
     chunksize = 1024 * 32
 
@@ -127,9 +237,8 @@ def apply(matrix, pos, np=None):
         tmp[..., 3] = 1.0
         tmp[..., :3] = tmppos
         tmp = numpy.dot(tmp, matrix.T)
-        n = tmp[..., 3].copy()
 
-        tmpout[..., :] = tmp[..., :3] / n[..., None]
+        tmpout[..., :] = tmp[..., :3] / tmp[..., 3][..., None]
         
     with sharedmem.MapReduce(np=np) as pool:
         pool.map(work, range(0, len(pos), chunksize))
@@ -137,11 +246,44 @@ def apply(matrix, pos, np=None):
     return shmout
 
 def clip(xc):
+    """ Compute the clipping mask from clipping coordinates.
+    
+        Parameters
+        ----------
+        xc : array_like
+           position in clipping coordinate.
+    
+        Returns
+        -------
+        mask : array_like
+           True for inside, False for outside.
+
+    """
+
     return ((xc >= -1) & (xc <= 1)).all(axis=-1)
 
 def todevice(xc, extent, np=None):
-    """
-        convert to device coordinate
+    """ Convert clipping coordinate to device coordinate.
+    
+        Parameters
+        ----------
+        extent : 2-tuple or 4-tuple
+           The extent of the device cooridnate.
+           (E[0], E[1]) or (S[0], E[0], S[1], E[1]).
+           in first case S[0], and S[1] are 0.
+           
+        xc : array_like (... ,3)
+            Clipping coordinates. Only the first two columns
+            of xc are used.
+
+        Returns
+        -------
+        xd : array_like (..., 2)
+            data in device coordinate.
+            For data in the fustrum, it shall be
+            between S and E. Only the first two columns
+            of xd are useful.
+
     """
     if len(extent) == 2:
         r, t = extent
@@ -164,14 +306,50 @@ def todevice(xc, extent, np=None):
 
     return out
 
-def test():
-    pos = numpy.random.uniform(size=(1000, 3)) * 20.
-    pos -= 10.
-    proj = ortho(0, 20, (-10, 10, -10, 10))
-    mcam = lookat((0, 0, -10), (0, 0, 0), (0, 1, 0))
-    p2d = apply(proj.dot(mcam), pos)
-    #print p2d.max(axis=0)
-    #print p2d.min(axis=0)
+def data_to_device(matrix, pos, sml, extent, apply_clip=False, np=None):
+    """ Transform pos and smoothing length in device coordinate,
+        to device with finite differentiation.
+    
+        Parameters
+        ----------
+        matrix: camera matrix
+
+        pos : array_like
+            position in data coordinate
+
+        sml : array_like
+            smoothing in data coordinate
+
+        extent : 2-tuple or 4-tuple
+            (see todevice)
+
+        apply_clip : bool
+            if True, the clipping will be applied
+        Returns
+        -------
+        xd, smld, clip : array_like
+            position and sml in device coordinate, and clipping flag.
+
+            xd and smld are clipped by clip if apply_clip is True.
+
+    """
+    assert isinstance(matrix, cameramatrix)
+
+    xc = apply(matrix, pos + sml[:, None] * matrix.side, np=np)
+
+    m = clip(xc)
+    if apply_clip:
+        xc = xc[m]
+        pos = pos[m]
+        sml = sml[m]
+
+    xd = todevice(xc, extent, np=np)
+
+    xc1 = apply(matrix, pos + sml[:, None] * matrix.side, np=np)
+    xd1 = todevice(xc1, extent, np=np)
+
+    smld = ((xd1 - xd) ** 2).sum(axis=-1) ** 0.5
+    return xd, smld, m
 
 if __name__ == '__main__':
     test()

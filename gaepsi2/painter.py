@@ -3,16 +3,46 @@ import sharedmem
 import numpy
 
 def paint(pos, sml, data, shape, mask=None, np=0):
-    """ paint on 
-          paint (pos, sml, data, image)
+    """ Use SPH kernel to splat particles to an image.
 
-          data is a list for quantities to paint per channel
-          pos[0] : 0 .. height
-          pos[1] : 0 .. width
-          so remember to transpose using imshow.
+        Parameters
+        ----------
 
-        returns (nchan, shape[0], shape[1])
+        pos : array_like
+          (..., >2) position of particles. Only two first
+          column is used. In device coordinate
+
+        data : array_like
+          (Nc, ...) or (...). Weight to use for painting.
+          Nc channels will be produces on the device.
+          if the array is 1d, Nc = 1
+        
+        sml : array_like
+          smoothing length (half of effective size).
+          In device coordinate; only correct in isotropic
+          cameras
+
+        shape : list, tuple
+          (w[0], w[1]) the size of the device.
+          shall enclose pos[..., 0] and pos[..., 1]
+
+        mask : array_like, boolean
+          If provided, elements with False will not be painted.
+
+        np : int
+          number of multiprocessing. 0 for single-processing.
+          None for all available cores.
+
+        Returns
+        -------
+        image: array_like
+           (Nc, shape[0], shape[1])
+
+        Notes
+        -----
+        Remember to transpose for imshow and pmesh to correct put x horizontaly.
     """
+
     if len(numpy.shape(data)) == 1:
         data = [data]
 
