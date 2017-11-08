@@ -1,0 +1,5 @@
+include c/*.c
+include c/*.h
+include gaepsi2/*.pyx
+include gaepsi2/*.c
+include README.rst
