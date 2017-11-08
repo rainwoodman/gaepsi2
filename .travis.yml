@@ -1,0 +1,41 @@
+language: python
+
+python:
+    - 3.6
+    - 2.7
+
+env:
+    matrix:
+        - NUMPY_VERSION=1.12
+
+
+before_install:
+    - if [ $TRAVIS_BRANCH == coverity_scan -a ${TRAVIS_JOB_NUMBER##*.} != 1 ]; then exit 0; fi
+    - wget http://repo.continuum.io/miniconda/Miniconda-latest-Linux-x86_64.sh -O miniconda.sh
+    - chmod +x miniconda.sh
+    - ./miniconda.sh -b -p $HOME/miniconda
+    - export PATH=$HOME/miniconda/bin:$PATH
+    - conda update --yes conda
+
+install:
+    - conda create --yes -n test python=$TRAVIS_PYTHON_VERSION
+    - source activate test
+    - conda install --yes numpy=$NUMPY_VERSION nose cython
+    - conda install --yes runtests
+    - python setup.py install
+
+script:
+    - if [ $TRAVIS_BRANCH == coverity_scan ]; then exit 0; fi
+    - python ./run-tests.py
+    - bash check_tag.sh gaepsi2/version.py
+
+deploy:
+    - provider: pypi
+      distributions: sdist
+      server: https://pypi.python.org/pypi
+      user: "rainwoodman"
+      password:
+          secure: "l2vPJwmSojLOjHOQag7lY6kZJJLaosxqGFVmmuCuxTQEoxmnNlQAOPo/yC1rlgxxc3YHnMwPHfFSbhHBPrXfKpqUBhWDV26Fc8aj/uY1+jGxvQ9UEWu78D1CxqqwS6k90d9dR4QClrBwpuOVNqpsdqoq4u0TgHd0QxywJUq/ZnhWtYEq2wSVv2w4YIlWNLBn38Yr1KmaCC9F0sbLyqUoqRQcnSGSqabvATx3cqT04EYEMmjkUo5HtIjUlOzEKt+Ek6ycQfAFrFwX5X5gRBdouBKBpMfiK0VsHwmJczmxQlgspBJehU6us4SB7XNVS5jDNPGB/kqLFjMZICFf1xzG8VVg0gEnynYDuJUaKtI96NxgQy049bK1CHkogK/UGmzcITO/0GMkzli/s1jIxN1J67cqJ5GI5oXf1hmVRKUaTz9Jhvm0jl4QqLRD3JFf03qcMA2LfOVenEM72H9+Q1CvamfYNkDqZHAJYiCCbVjBybHfi0Nsr52eqgS9W6tJ10avUyXiLWfYZHwZYgaLq0jtpqFim3UKQDXKiYvpKuOaN7POxo3hwllt3ONJEVDJNOMyG2EGTzrPrzzxi5zj0350k0QDS9X629H/XCYfX+5ohH5cPeZjVWvE/Q893bwSCqkDOTXBDpSeZDKtXN3FHDyQAw4hRrIgSsbXyX9GAlj+vPA="
+      on:
+        tags   : true
+        condition : ${TRAVIS_JOB_NUMBER##*.} == 1
