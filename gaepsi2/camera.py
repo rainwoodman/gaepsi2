@@ -104,6 +104,8 @@ def lookat(pos, target, up):
     tran[0:3, 3] = -pos
     m2 = numpy.dot(m1, tran)
     m2 = m2.view(type=modelviewmatrix)
+    m2.up = up
+    m2.side = side
     return m2
 
 def apply(matrix, pos, np=None):
@@ -125,8 +127,10 @@ def apply(matrix, pos, np=None):
         tmp[..., 3] = 1.0
         tmp[..., :3] = tmppos
         tmp = numpy.dot(tmp, matrix.T)
-        tmpout[..., :] = tmp[..., :3] / tmp[..., 3][..., None]
+        n = tmp[..., 3].copy()
 
+        tmpout[..., :] = tmp[..., :3] / n[..., None]
+        
     with sharedmem.MapReduce(np=np) as pool:
         pool.map(work, range(0, len(pos), chunksize))
 
@@ -139,17 +143,21 @@ def todevice(xc, extent, np=None):
     """
         convert to device coordinate
     """
-    l, r, b, t = extent
+    if len(extent) == 2:
+        r, t = extent
+        l, b = 0, 0
+    else:
+        l, r, b, t = extent
 
     chunksize = 1024 * 32
     out = sharedmem.empty((len(xc), 2))
     def work(i):
         tmp = (xc[i:i+chunksize] + 1.0)
         tmp *= 0.5
-        tmp[..., 0] *= (r - l)
-        tmp[..., 0] += l
         tmp[..., 1] *= (t - b)
         tmp[..., 1] += b
+        tmp[..., 0] *= (r - l)
+        tmp[..., 0] += l
         out[i:i+chunksize] = tmp[:, :2]
     with sharedmem.MapReduce(np=np) as pool:
         pool.map(work, range(0, len(xc), chunksize))

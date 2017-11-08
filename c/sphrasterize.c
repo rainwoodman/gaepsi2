@@ -145,7 +145,7 @@ gsph_rasterize(GSPHImage * image, GSPHKernel sphkernel,
                 for(i = 0; i < nc; i ++) {
                     tmp[i] = mvalue[i] * w;
                 }
-                gsph_image_write(image, x, y, tmp);
+                gsph_image_write(image, y, x, tmp);
             }
         }
         }
