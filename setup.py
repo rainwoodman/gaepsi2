@@ -30,7 +30,7 @@ setup(
     author_email="rainwoodman@gmail.com",
     url="http://github.com/rainwoodman/gaepsi2",
     description="gaepsi2. SPH visualization.",
-    install_requires=['cython', 'numpy'],
+    install_requires=['cython', 'numpy', 'sharedmem'],
     zip_safe = False,
     packages= ['gaepsi2', 'gaepsi2.tests'],
     ext_modules = cythonize(extensions),
