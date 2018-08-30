@@ -33,7 +33,7 @@ script:
 deploy:
     - provider: pypi
       distributions: sdist
-      server: https://pypi.python.org/pypi
+      server: https://upload.pypi.org/legacy
       user: "rainwoodman"
       password:
           secure: "ZiLLantQMOb2JDNknVaM6LZiYfz4jipHArefbWZy1QyTXwS39fh4sXQEeeAZkcSWJuzm0zGybdlN8ooSAHuwA94tK5K3jlG9qhKQsSm2Nix/tiJA/qcn1WrGJ3VhBFEpxoLPpUCcyvmjTd/K7kJrBQm+UfeUwrID/OhLKNii+B8Y2gNok8PnzOeemDxSqXF87t91UHAWYIeIuUeqRtOa6A/UXtzVgahfnK8f4pWkZKUlRrLaZaZYtFgLzRVXIGB78Kv/wKUxCapWBw8bvB/pBTH+d6PDOxgIeMPmYcnAaWy1yBuoSNU3gcRVhXNY1N5cMlQMSLg3I9Imail2S3s/WQ/AXFy56AXAQ+GKYoKymhHP2CFubpV0BGzDT+XkI62hUJSj/TMygTvxHnNJHKCfJ42Agv5va/WnRUB4P4OIo2txlFmNKTtrNsHB8UAblDeqYBxSLJtJZ7yPczyZ57s0eJ5dGicVKyRROtJVzaMQLqsY82abYqpr4M2rIc+RpZib2vFGlPXzX8hInHj5yBG21kQnLrApYnbjESaGVyji1h65u0bObg91xu5FItiUmVHwkvNGI8vtHqBn9IoXVJExQ6WA35QLzFqLyaHeOFAf7vELA95e84w87Ni4J92Ahuh8vuO0y55GYl1Yc3CAluip4+Lie1TefAY6iLipYzHhmog="
