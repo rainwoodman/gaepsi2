@@ -49,7 +49,7 @@ def paint(pos, sml, data, shape, mask=None, np=0):
     with sharedmem.MapReduce(np=np) as pool:
         if pool.np > 0: nbuf = pool.np
         else: nbuf = 1
-        buf = sharedmem.empty((nbuf, len(data)) + shape, dtype='f4')
+        buf = sharedmem.empty([nbuf, len(data)] + list(shape), dtype='f4')
         buf[:] = 0
         chunksize = 1024 * 8
 
